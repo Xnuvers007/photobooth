@@ -10,12 +10,14 @@ const state = {
   photos: [],          // array of ImageData/dataURLs
   currentFilter: 'none',
   currentFrame: 'kawaii',
-  photoCount: 3,
+  photoCount: 4,
   timerDelay: 3,
   mirror: true,
   capturing: false,
   facingMode: 'user', // 'user' for front, 'environment' for back
-  stripLayout: 'vertical' // 'vertical' or 'horizontal'
+  stripLayout: 'vertical', // 'vertical' or 'horizontal'
+  inputMode: 'camera', // 'camera' or 'upload'
+  printType: 'strip'   // 'strip' or 'polaroid'
 };
 
 // ── DOM Refs ────────────────────────────────────────
@@ -47,13 +49,93 @@ const layoutToggle   = document.getElementById('layoutToggle');
 const customPhotoCount = document.getElementById('customPhotoCount');
 const customTimerDelay = document.getElementById('customTimerDelay');
 
+// New DOM Refs
+const modeCameraBtn  = document.getElementById('modeCameraBtn');
+const modeUploadBtn  = document.getElementById('modeUploadBtn');
+const cameraWrapper  = document.getElementById('cameraWrapper');
+const uploadWrapper  = document.getElementById('uploadWrapper');
+const fileInput      = document.getElementById('fileInput');
+const triggerFileBtn = document.getElementById('triggerFileBtn');
+const uploadBox      = document.getElementById('uploadBox');
+const uploadPreview  = document.getElementById('uploadPreview');
+const printTypePills  = document.getElementById('printTypePills');
+const openGalleryBtn = document.getElementById('openGalleryBtn');
+const closeGalleryBtn= document.getElementById('closeGalleryBtn');
+const galleryModal   = document.getElementById('galleryModal');
+const galleryGrid    = document.getElementById('galleryGrid');
+const emptyGallery   = document.getElementById('emptyGallery');
+const clearGalleryBtn= document.getElementById('clearGalleryBtn');
+const shutterText    = document.getElementById('shutterText');
+
+// ── IndexedDB (Gallery) ──────────────────────────────
+const DB_NAME = 'CuteBoothDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'gallery';
+let db;
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    request.onsuccess = (e) => {
+      db = e.target.result;
+      resolve();
+    };
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+function saveToGallery(dataURL) {
+  if (!db) return;
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  const store = tx.objectStore(STORE_NAME);
+  store.add({ image: dataURL, timestamp: Date.now() });
+}
+
+function loadGallery() {
+  return new Promise((resolve) => {
+    if (!db) return resolve([]);
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.getAll();
+    request.onsuccess = () => {
+      resolve(request.result.sort((a, b) => b.timestamp - a.timestamp));
+    };
+  });
+}
+
+function deleteFromGallery(id) {
+  if (!db) return;
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  const store = tx.objectStore(STORE_NAME);
+  store.delete(id);
+}
+
+function clearGallery() {
+  if (!db) return;
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  const store = tx.objectStore(STORE_NAME);
+  store.clear();
+}
+
 // ── Init ────────────────────────────────────────────
 (async function init() {
+  try {
+    await initDB();
+  } catch (err) {
+    console.error('Gagal inisialisasi IndexedDB:', err);
+  }
+
   try {
     showLoading('Menyiapkan AI Data Wajah... 🤖');
     // Jika dijalankan langsung dari file:// (tanpa server lokal), gunakan proxy CORS agar tidak diblokir browser.
     const MODEL_URL = window.location.protocol === 'file:' 
-      ? 'https://my-cors-proxy.zenth.workers.dev/?url=https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights'
+      ? 'https://cdn.jsdelivr.net/gh/vladmandic/face-api@1.7.12/model/'
       : './assets/models';
       
     await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
@@ -122,6 +204,79 @@ function stopCamera() {
 let faceDetectionInterval;
 
 function bindEvents() {
+  // Mode Switcher
+  modeCameraBtn.addEventListener('click', async () => {
+    if (state.inputMode === 'camera') return;
+    state.inputMode = 'camera';
+    modeCameraBtn.classList.add('active');
+    modeUploadBtn.classList.remove('active');
+    uploadWrapper.style.display = 'none';
+    cameraWrapper.style.display = 'block';
+    shutterText.textContent = 'Ambil Foto!';
+    await startCamera();
+  });
+
+  modeUploadBtn.addEventListener('click', () => {
+    if (state.inputMode === 'upload') return;
+    state.inputMode = 'upload';
+    modeUploadBtn.classList.add('active');
+    modeCameraBtn.classList.remove('active');
+    cameraWrapper.style.display = 'none';
+    uploadWrapper.style.display = 'flex';
+    shutterText.textContent = 'Proses Foto!';
+    stopCamera();
+  });
+
+  // Upload Logic
+  triggerFileBtn.addEventListener('click', () => fileInput.click());
+  
+  uploadWrapper.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadWrapper.classList.add('dragover');
+  });
+  uploadWrapper.addEventListener('dragleave', () => {
+    uploadWrapper.classList.remove('dragover');
+  });
+  uploadWrapper.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadWrapper.classList.remove('dragover');
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files);
+    }
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFiles(e.target.files);
+    }
+  });
+
+  // Print Type Pills
+  document.getElementById('printTypePills').addEventListener('click', e => {
+    const btn = e.target.closest('button.pill');
+    if (!btn || !btn.dataset.printtype) return;
+    state.printType = btn.dataset.printtype;
+    document.querySelectorAll('#printTypePills button.pill').forEach(p => {
+      p.classList.toggle('active', p === btn);
+      p.setAttribute('aria-selected', p === btn ? 'true' : 'false');
+    });
+    if (state.photos.length > 0) renderStrip();
+  });
+
+  // Gallery
+  openGalleryBtn.addEventListener('click', openGallery);
+  closeGalleryBtn.addEventListener('click', () => {
+    galleryModal.style.display = 'none';
+    galleryModal.setAttribute('aria-hidden', 'true');
+  });
+  clearGalleryBtn.addEventListener('click', async () => {
+    if(confirm('Yakin ingin menghapus SEMUA foto di galeri?')) {
+      clearGallery();
+      await openGallery();
+      showToast('🗑️ Penyimpanan berhasil dikosongkan!');
+    }
+  });
+
   // Face Detection on Video Play
   video.addEventListener('play', () => {
     const displaySize = { width: video.videoWidth || 1280, height: video.videoHeight || 720 };
@@ -345,20 +500,55 @@ async function startCapture() {
   state.capturing = true;
   shutterBtn.disabled = true;
   state.photos = [];
-  showToast(`📸 Akan mengambil ${state.photoCount} foto!`);
 
-  for (let i = 0; i < state.photoCount; i++) {
-    if (state.timerDelay > 0) await countdown(state.timerDelay);
-    await captureOnePhoto(i + 1);
-    if (i < state.photoCount - 1) await sleep(600);
+  if (state.inputMode === 'upload') {
+    if (uploadedPhotos.length === 0) {
+      showToast('⚠️ Pilih foto dulu!');
+      state.capturing = false;
+      shutterBtn.disabled = false;
+      return;
+    }
+    showToast('⚙️ Memproses foto...');
+    for (let i = 0; i < uploadedPhotos.length; i++) {
+      const img = new Image();
+      await new Promise(res => {
+        img.onload = res;
+        img.src = uploadedPhotos[i];
+      });
+      hiddenCanvas.width = 1280;
+      hiddenCanvas.height = 720;
+      const ctx = hiddenCanvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, 1280, 720);
+      applyCanvasFilter(ctx, 1280, 720, state.currentFilter);
+      state.photos.push(hiddenCanvas.toDataURL('image/png', 1.0));
+    }
+    // Pad with last photo if not enough
+    while (state.photos.length < state.photoCount) {
+      state.photos.push(state.photos[state.photos.length - 1]);
+    }
+    state.photos = state.photos.slice(0, state.photoCount);
+    await sleep(500); // UI feedback
+  } else {
+    showToast(`📸 Akan mengambil ${state.photoCount} foto!`);
+    for (let i = 0; i < state.photoCount; i++) {
+      if (state.timerDelay > 0) await countdown(state.timerDelay);
+      await captureOnePhoto(i + 1);
+      if (i < state.photoCount - 1) await sleep(600);
+    }
   }
 
   await renderStrip();
   state.capturing = false;
+  shutterBtn.disabled = false;
   stripCanvas.style.display = 'block';
   emptyStrip.style.display = 'none';
   stripActions.style.display = 'flex';
-  showToast('🎉 Strip foto siap!');
+  
+  // Save to Gallery
+  const stripDataURL = stripCanvas.toDataURL('image/png', 1.0);
+  saveToGallery(stripDataURL);
+  
+  showToast('🎉 Strip foto siap & tersimpan di Galeri!');
 }
 
 async function countdown(seconds) {
@@ -568,76 +758,351 @@ function applyCanvasFilter(ctx, w, h, filter) {
   ctx.putImageData(imageData, 0, 0);
 }
 
-// ── Strip Rendering ───────────────────────────────────
+// \u2500\u2500 Strip Rendering \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 async function renderStrip() {
   const count = state.photos.length;
   if (count === 0) return;
-
-  const PHOTO_W = 600;
-  const PHOTO_H = Math.round(PHOTO_W * 0.75);   // 4:3
-  const PAD     = 28;
-  const HEADER  = 80;
-  const FOOTER  = 90;
-
-  let TOTAL_W, TOTAL_H;
-
-  if (state.stripLayout === 'horizontal') {
-    TOTAL_W = PAD * 2 + (PHOTO_W * count) + (PAD * (count - 1));
-    TOTAL_H = HEADER + PHOTO_H + PAD * 2 + FOOTER;
-  } else {
-    TOTAL_W = PHOTO_W + PAD * 2;
-    TOTAL_H = HEADER + count * PHOTO_H + (count - 1) * PAD + PAD * 2 + FOOTER;
-  }
-
-  stripCanvas.width  = TOTAL_W;
-  stripCanvas.height = TOTAL_H;
   const ctx = stripCanvas.getContext('2d');
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  // Background
-  drawBackground(ctx, TOTAL_W, TOTAL_H, state.currentFrame);
+  const type = state.printType || 'strip';
 
-  // Header text
-  drawHeader(ctx, TOTAL_W, HEADER, state.currentFrame);
-
-  // Photos
-  for (let i = 0; i < count; i++) {
-    let x, y;
-    if (state.stripLayout === 'horizontal') {
-      x = PAD + i * (PHOTO_W + PAD);
-      y = HEADER + PAD;
-    } else {
-      x = PAD;
-      y = HEADER + PAD + i * (PHOTO_H + PAD);
-    }
-    await drawPhoto(ctx, state.photos[i], x, y, PHOTO_W, PHOTO_H, state.currentFrame);
+  // ── Helper: load an image from dataURL ──
+  function loadImg(src) {
+    return new Promise(res => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.src = src;
+    });
   }
 
-  // Footer
-  drawFooter(ctx, TOTAL_W, TOTAL_H, FOOTER, state.currentFrame);
+  // ── Helper: draw image letterboxed in a rect ──
+  function drawImgFit(ctx, img, x, y, w, h) {
+    const ir = img.width / img.height;
+    const cr = w / h;
+    let dw, dh, dx, dy;
+    if (ir > cr) { dw = w; dh = w / ir; dx = x; dy = y + (h - dh) / 2; }
+    else { dh = h; dw = h * ir; dy = y; dx = x + (w - dw) / 2; }
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // 1. STANDARD STRIP
+  // ──────────────────────────────────────────────────────────
+  if (type === 'strip') {
+    const PHOTO_W = 600, PHOTO_H = Math.round(600 * 0.75);
+    const PAD = 28, HEADER = 80, FOOTER = 90;
+    let TOTAL_W, TOTAL_H;
+    if (state.stripLayout === 'horizontal') {
+      TOTAL_W = PAD * 2 + PHOTO_W * count + PAD * (count - 1);
+      TOTAL_H = HEADER + PHOTO_H + PAD * 2 + FOOTER;
+    } else {
+      TOTAL_W = PHOTO_W + PAD * 2;
+      TOTAL_H = HEADER + count * PHOTO_H + (count - 1) * PAD + PAD * 2 + FOOTER;
+    }
+    stripCanvas.width = TOTAL_W; stripCanvas.height = TOTAL_H;
+    drawBackground(ctx, TOTAL_W, TOTAL_H, state.currentFrame);
+    drawHeader(ctx, TOTAL_W, HEADER, state.currentFrame);
+    for (let i = 0; i < count; i++) {
+      const x = state.stripLayout === 'horizontal' ? PAD + i * (PHOTO_W + PAD) : PAD;
+      const y = state.stripLayout === 'horizontal' ? HEADER + PAD : HEADER + PAD + i * (PHOTO_H + PAD);
+      await drawPhoto(ctx, state.photos[i], x, y, PHOTO_W, PHOTO_H, state.currentFrame);
+    }
+    drawFooter(ctx, TOTAL_W, TOTAL_H, FOOTER, state.currentFrame);
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // 2. POLAROID
+  // ──────────────────────────────────────────────────────────
+  else if (type === 'polaroid') {
+    const PHOTO_W = 520, PHOTO_H = Math.round(520 * 0.75);
+    const PAD_SIDE = 30, PAD_TOP = 30, PAD_BOTTOM = 100;
+    const POL_W = PHOTO_W + PAD_SIDE * 2;
+    const POL_H = PHOTO_H + PAD_TOP + PAD_BOTTOM;
+    const SPACING = 40;
+    const cols = state.stripLayout === 'horizontal' ? count : 1;
+    const rows = state.stripLayout === 'horizontal' ? 1 : count;
+    stripCanvas.width  = cols * POL_W + (cols + 1) * SPACING;
+    stripCanvas.height = rows * POL_H + (rows + 1) * SPACING;
+    drawBackground(ctx, stripCanvas.width, stripCanvas.height, state.currentFrame);
+    for (let i = 0; i < count; i++) {
+      const col = state.stripLayout === 'horizontal' ? i : 0;
+      const row = state.stripLayout === 'horizontal' ? 0 : i;
+      const px = SPACING + col * (POL_W + SPACING);
+      const py = SPACING + row * (POL_H + SPACING);
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 18;
+      ctx.shadowOffsetX = 4; ctx.shadowOffsetY = 8;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(px, py, POL_W, POL_H);
+      ctx.restore();
+      const img = await loadImg(state.photos[i]);
+      ctx.drawImage(img, px + PAD_SIDE, py + PAD_TOP, PHOTO_W, PHOTO_H);
+      ctx.fillStyle = '#555';
+      ctx.font = 'bold 28px Pacifico, cursive';
+      ctx.textAlign = 'center';
+      ctx.fillText('CuteBooth ✨', px + POL_W / 2, py + POL_H - 38);
+      ctx.font = '16px Nunito, sans-serif';
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(new Date().toLocaleDateString('id-ID'), px + POL_W / 2, py + POL_H - 16);
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // 3. FILM STRIP
+  // ──────────────────────────────────────────────────────────
+  else if (type === 'filmstrip') {
+    const PHOTO_W = 480, PHOTO_H = Math.round(480 * 0.75);
+    const PERF_W = 40, PERF_H = 28, PERF_GAP = 18, PERF_PAD = 12;
+    const PAD = 20;
+    const horizontal = state.stripLayout === 'horizontal';
+    const STRIP_W = horizontal
+      ? PERF_W + PAD + count * (PHOTO_W + PAD) + PERF_W
+      : PERF_W + PAD + PHOTO_W + PAD + PERF_W;
+    const STRIP_H = horizontal
+      ? PERF_H * 2 + PAD * 2 + PHOTO_H
+      : count * (PHOTO_H + PAD) + PAD + PERF_H * 2;
+    stripCanvas.width = STRIP_W; stripCanvas.height = STRIP_H;
+    // Film base
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, STRIP_W, STRIP_H);
+    // Sprocket holes
+    function drawPerfs(isTop) {
+      const baseY = isTop ? PERF_PAD : STRIP_H - PERF_PAD - PERF_H;
+      for (let x = PERF_W; x < STRIP_W - PERF_W; x += PERF_GAP + PERF_W) {
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.roundRect(x, baseY, PERF_W, PERF_H, 5);
+        ctx.fill();
+      }
+    }
+    function drawSidePerfs(isLeft) {
+      const baseX = isLeft ? PERF_PAD : STRIP_W - PERF_PAD - PERF_W;
+      for (let y = PERF_H; y < STRIP_H - PERF_H; y += PERF_GAP + PERF_H) {
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.roundRect(baseX, y, PERF_W, PERF_H, 5);
+        ctx.fill();
+      }
+    }
+    if (horizontal) { drawPerfs(true); drawPerfs(false); }
+    else { drawSidePerfs(true); drawSidePerfs(false); }
+    // Photos
+    for (let i = 0; i < count; i++) {
+      const px = horizontal ? PERF_W + PAD + i * (PHOTO_W + PAD) : PERF_W + PAD;
+      const py = horizontal ? PERF_H + PAD : PERF_H + PAD + i * (PHOTO_H + PAD);
+      const img = await loadImg(state.photos[i]);
+      ctx.drawImage(img, px, py, PHOTO_W, PHOTO_H);
+      // Frame number
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${String(i + 1).padStart(2, '0')}A`, px + 5, py + PHOTO_H - 6);
+    }
+    // Logo
+    ctx.fillStyle = '#ffd700';
+    ctx.font = 'bold 18px Nunito, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('CUTEBOOTH', STRIP_W / 2, STRIP_H - 6);
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // 4. COMPACT 2x2
+  // ──────────────────────────────────────────────────────────
+  else if (type === 'compact') {
+    const PHOTO_W = 380, PHOTO_H = Math.round(380 * 0.75);
+    const PAD = 24, HEADER = 70, FOOTER = 60;
+    const cols = 2;
+    const rows = Math.ceil(Math.max(count, 4) / 2);
+    const TW = PAD + cols * (PHOTO_W + PAD);
+    const TH = HEADER + rows * (PHOTO_H + PAD) + FOOTER;
+    stripCanvas.width = TW; stripCanvas.height = TH;
+    drawBackground(ctx, TW, TH, state.currentFrame);
+    drawHeader(ctx, TW, HEADER, state.currentFrame);
+    for (let i = 0; i < Math.min(count, cols * rows); i++) {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const px = PAD + col * (PHOTO_W + PAD);
+      const py = HEADER + PAD / 2 + row * (PHOTO_H + PAD);
+      await drawPhoto(ctx, state.photos[i], px, py, PHOTO_W, PHOTO_H, state.currentFrame);
+    }
+    drawFooter(ctx, TW, TH, FOOTER, state.currentFrame);
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // 5. 4 PANEL (large equal panels, 2x2 with thick borders)
+  // ──────────────────────────────────────────────────────────
+  else if (type === 'panel4') {
+    const PANEL = 500;
+    const BORDER = 16, PAD = 30, HEADER = 80, FOOTER = 70;
+    const TW = PAD + 2 * (PANEL + BORDER * 2) + PAD + PAD;
+    const TH = HEADER + PAD + 2 * (PANEL + BORDER * 2) + PAD + FOOTER;
+    stripCanvas.width = TW; stripCanvas.height = TH;
+    drawBackground(ctx, TW, TH, state.currentFrame);
+    drawHeader(ctx, TW, HEADER, state.currentFrame);
+    const positions = [
+      [PAD, HEADER + PAD],
+      [PAD + PANEL + BORDER * 2 + PAD, HEADER + PAD],
+      [PAD, HEADER + PAD + PANEL + BORDER * 2 + PAD],
+      [PAD + PANEL + BORDER * 2 + PAD, HEADER + PAD + PANEL + BORDER * 2 + PAD],
+    ];
+    for (let i = 0; i < Math.min(count, 4); i++) {
+      const [bx, by] = positions[i];
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = 'rgba(0,0,0,0.2)'; ctx.shadowBlur = 12;
+      ctx.fillRect(bx, by, PANEL + BORDER * 2, PANEL + BORDER * 2);
+      ctx.shadowColor = 'transparent';
+      const img = await loadImg(state.photos[i]);
+      drawImgFit(ctx, img, bx + BORDER, by + BORDER, PANEL, PANEL);
+    }
+    drawFooter(ctx, TW, TH, FOOTER, state.currentFrame);
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // 6. CONTACT SHEET (small thumbnails, 3 per row)
+  // ──────────────────────────────────────────────────────────
+  else if (type === 'contact') {
+    const THUMB_W = 280, THUMB_H = Math.round(280 * 0.75);
+    const COLS = 3, PAD = 18, HEADER = 70, FOOTER = 50;
+    const rows = Math.ceil(count / COLS);
+    const TW = PAD + COLS * (THUMB_W + PAD);
+    const TH = HEADER + rows * (THUMB_H + PAD) + FOOTER;
+    stripCanvas.width = TW; stripCanvas.height = TH;
+    // White background for contact sheet
+    ctx.fillStyle = '#f8f8f8';
+    ctx.fillRect(0, 0, TW, TH);
+    // Grid lines
+    ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1;
+    for (let c = 0; c <= COLS; c++) {
+      const x = PAD / 2 + c * (THUMB_W + PAD);
+      ctx.beginPath(); ctx.moveTo(x, HEADER); ctx.lineTo(x, TH - FOOTER); ctx.stroke();
+    }
+    // Header
+    ctx.fillStyle = '#222';
+    ctx.font = 'bold 26px Nunito, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('✨ CuteBooth – Contact Sheet ✨', TW / 2, 48);
+    // Thumbnails
+    for (let i = 0; i < count; i++) {
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const px = PAD + col * (THUMB_W + PAD);
+      const py = HEADER + PAD / 2 + row * (THUMB_H + PAD);
+      ctx.fillStyle = '#eee';
+      ctx.fillRect(px, py, THUMB_W, THUMB_H);
+      const img = await loadImg(state.photos[i]);
+      drawImgFit(ctx, img, px, py, THUMB_W, THUMB_H);
+      ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1;
+      ctx.strokeRect(px, py, THUMB_W, THUMB_H);
+      // Frame number
+      ctx.fillStyle = '#999'; ctx.font = '12px monospace'; ctx.textAlign = 'left';
+      ctx.fillText(String(i + 1).padStart(2, '0'), px + 4, py + THUMB_H - 4);
+    }
+    // Footer
+    ctx.fillStyle = '#888'; ctx.font = '14px Nunito'; ctx.textAlign = 'center';
+    ctx.fillText(new Date().toLocaleDateString('id-ID', { year:'numeric',month:'long',day:'numeric' }), TW / 2, TH - 16);
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // 7. VINTAGE (aged paper with sepia-toned frame)
+  // ──────────────────────────────────────────────────────────
+  else if (type === 'vintage') {
+    const PHOTO_W = 560, PHOTO_H = Math.round(560 * 0.75);
+    const PAD = 36, HEADER = 90, FOOTER = 100;
+    const horizontal = state.stripLayout === 'horizontal';
+    const TW = horizontal ? PAD * 2 + count * (PHOTO_W + PAD) : PHOTO_W + PAD * 2;
+    const TH = horizontal ? HEADER + PHOTO_H + PAD * 2 + FOOTER
+                          : HEADER + count * (PHOTO_H + PAD) + PAD + FOOTER;
+    stripCanvas.width = TW; stripCanvas.height = TH;
+    // Aged paper background
+    const grad = ctx.createLinearGradient(0, 0, TW, TH);
+    grad.addColorStop(0, '#f5e6c8'); grad.addColorStop(1, '#e8d5a8');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, TW, TH);
+    // Grain overlay
+    ctx.save(); ctx.globalAlpha = 0.06;
+    for (let gy = 0; gy < TH; gy += 3) {
+      for (let gx = 0; gx < TW; gx += 3) {
+        if (Math.random() > 0.7) { ctx.fillStyle = '#8B6914'; ctx.fillRect(gx, gy, 2, 2); }
+      }
+    }
+    ctx.restore();
+    // Decorative border
+    ctx.strokeStyle = '#a07830'; ctx.lineWidth = 8;
+    ctx.strokeRect(12, 12, TW - 24, TH - 24);
+    ctx.strokeStyle = '#c8a060'; ctx.lineWidth = 2;
+    ctx.strokeRect(20, 20, TW - 40, TH - 40);
+    // Header
+    ctx.fillStyle = '#6b4c16';
+    ctx.font = 'bold 36px Pacifico, cursive';
+    ctx.textAlign = 'center';
+    ctx.fillText('∴ CuteBooth ∴', TW / 2, 56);
+    ctx.font = 'italic 16px Georgia, serif';
+    ctx.fillStyle = '#9b7030';
+    ctx.fillText('~ Kenangan Manis ~', TW / 2, 80);
+    // Photos with sepia tint
+    for (let i = 0; i < count; i++) {
+      const px = horizontal ? PAD + i * (PHOTO_W + PAD) : PAD;
+      const py = horizontal ? HEADER + PAD : HEADER + PAD + i * (PHOTO_H + PAD);
+      // Cream mount
+      ctx.fillStyle = '#fffaed';
+      ctx.shadowColor = 'rgba(100,60,0,0.2)'; ctx.shadowBlur = 10;
+      ctx.fillRect(px - 8, py - 8, PHOTO_W + 16, PHOTO_H + 16);
+      ctx.shadowColor = 'transparent';
+      const img = await loadImg(state.photos[i]);
+      // Draw & sepia tint via temp canvas
+      const tmp = document.createElement('canvas');
+      tmp.width = PHOTO_W; tmp.height = PHOTO_H;
+      const tc = tmp.getContext('2d');
+      drawImgFit(tc, img, 0, 0, PHOTO_W, PHOTO_H);
+      const id = tc.getImageData(0, 0, PHOTO_W, PHOTO_H);
+      for (let p = 0; p < id.data.length; p += 4) {
+        const r = id.data[p], g = id.data[p+1], b = id.data[p+2];
+        id.data[p]   = Math.min(255, r * 0.393 + g * 0.769 + b * 0.189);
+        id.data[p+1] = Math.min(255, r * 0.349 + g * 0.686 + b * 0.168);
+        id.data[p+2] = Math.min(255, r * 0.272 + g * 0.534 + b * 0.131);
+      }
+      tc.putImageData(id, 0, 0);
+      ctx.drawImage(tmp, px, py);
+      // Corner tacks
+      [[px,py],[px+PHOTO_W,py],[px,py+PHOTO_H],[px+PHOTO_W,py+PHOTO_H]].forEach(([cx,cy]) => {
+        ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2);
+        ctx.fillStyle = '#c8a060'; ctx.fill();
+      });
+    }
+    // Footer
+    ctx.fillStyle = '#9b7030'; ctx.font = 'italic 18px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(new Date().toLocaleDateString('id-ID', { year:'numeric', month:'long', day:'numeric' }), TW / 2, TH - 48);
+    ctx.font = '13px Georgia'; ctx.fillStyle = '#b8903a';
+    ctx.fillText('"Memories last forever"', TW / 2, TH - 24);
+  }
 }
 
 function drawBackground(ctx, w, h, frame) {
   const frames = {
-    kawaii:  ['#ffe0f5', '#ede9fe'],
-    retro:   ['#f5e6d0', '#c8a97a'],
-    rainbow: ['#fff0f0', '#f0f8ff'],
-    star:    ['#1a0a2e', '#2d1454'],
-    mint:    ['#e6faf3', '#c8f5e6'],
-    dark:    ['#1f2937', '#111827'],
+    kawaii:     ['#ffe0f5', '#ede9fe'],
+    retro:      ['#f5e6d0', '#c8a97a'],
+    rainbow:    ['#fff0f0', '#f0f8ff'],
+    star:       ['#1a0a2e', '#2d1454'],
+    mint:       ['#e6faf3', '#c8f5e6'],
+    dark:       ['#1f2937', '#111827'],
     valentines: ['#ff9a9e', '#fecfef'],
-    ocean:   ['#00c6ff', '#0072ff'],
-    autumn:  ['#f12711', '#f5af19'],
-    y2k:     ['#ff00ff', '#00ffff'],
-    floral:  ['#d4fc79', '#96e6a1'],
-    space:   ['#0f2027', '#203a43'],
-    clouds:  ['#89f7fe', '#66a6ff'],
-    sunset:  ['#fa709a', '#fee140'],
-    candy:   ['#ff9a9e', '#fecfef'],
-    halloween: ['#ff4e50', '#f9d423'],
-    xmas:    ['#11998e', '#38ef7d'],
-    minimal: ['#fdfbfb', '#ebedee'],
+    ocean:      ['#00c6ff', '#0072ff'],
+    autumn:     ['#f12711', '#f5af19'],
+    y2k:        ['#ff00ff', '#00ffff'],
+    floral:     ['#d4fc79', '#96e6a1'],
+    space:      ['#0f2027', '#203a43'],
+    clouds:     ['#89f7fe', '#66a6ff'],
+    sunset:     ['#fa709a', '#fee140'],
+    candy:      ['#ff9a9e', '#fecfef'],
+    halloween:  ['#ff4e50', '#f9d423'],
+    xmas:       ['#11998e', '#38ef7d'],
+    minimal:    ['#fdfbfb', '#ebedee'],
+    romance:    ['#ffe4f0', '#ffd6e7'],
+    horror:     ['#1a0000', '#3d0000'],
+    suspense:   ['#0d1117', '#1c2733'],
+    pro:        ['#f0f0f0', '#d8d8d8'],
   };
   const [c1, c2] = frames[frame] || frames.kawaii;
   const grad = ctx.createLinearGradient(0, 0, 0, h);
@@ -654,24 +1119,28 @@ function drawPattern(ctx, w, h, frame) {
   ctx.save();
   ctx.globalAlpha = 0.18;
   const emojis = {
-    kawaii:  ['🌸', '💖', '⭐', '🌷', '✨'],
-    retro:   ['📷', '🎞️', '📻', '🎵'],
-    rainbow: ['🌈', '☁️', '⭐', '🦄'],
-    star:    ['⭐', '🌟', '💫', '✨'],
-    mint:    ['🍃', '🌿', '🌱', '🍀'],
-    dark:    ['🌙', '⭐', '🌌', '💫'],
+    kawaii:     ['🌸', '💖', '⭐', '🌷', '✨'],
+    retro:      ['📷', '🎞️', '📻', '🎵'],
+    rainbow:    ['🌈', '☁️', '⭐', '🦄'],
+    star:       ['⭐', '🌟', '💫', '✨'],
+    mint:       ['🍃', '🌿', '🌱', '🍀'],
+    dark:       ['🌙', '⭐', '🌌', '💫'],
     valentines: ['💖', '💕', '💌', '🌹', '❤️'],
-    ocean:   ['🌊', '🐚', '🐠', '🐬', '🏝️'],
-    autumn:  ['🍁', '🍂', '🍄', '🐿️', '🎃'],
-    y2k:     ['💿', '✨', '🦋', '📱', '🍒'],
-    floral:  ['🌺', '🌸', '🌼', '🌻', '🌷'],
-    space:   ['🚀', '🛸', '👽', '🪐', '🌌'],
-    clouds:  ['☁️', '🌤️', '🕊️', '🪁', '✈️'],
-    sunset:  ['🌇', '🌅', '🍹', '🌴', '☀️'],
-    candy:   ['🍬', '🍭', '🍧', '🍦', '🧁'],
-    halloween: ['🎃', '👻', '🦇', '🕷️', '🕸️'],
-    xmas:    ['🎄', '🎅', '🎁', '❄️', '⛄'],
-    minimal: [' '],
+    ocean:      ['🌊', '🐚', '🐠', '🐬', '🏝️'],
+    autumn:     ['🍁', '🍂', '🍄', '🐿️', '🎃'],
+    y2k:        ['💿', '✨', '🦋', '📱', '🍒'],
+    floral:     ['🌺', '🌸', '🌼', '🌻', '🌷'],
+    space:      ['🚀', '🛸', '👽', '🪐', '🌌'],
+    clouds:     ['☁️', '🌤️', '🕊️', '🪁', '✈️'],
+    sunset:     ['🌇', '🌅', '🍹', '🌴', '☀️'],
+    candy:      ['🍬', '🍭', '🍧', '🍦', '🧁'],
+    halloween:  ['🎃', '👻', '🦇', '🕷️', '🕸️'],
+    xmas:       ['🎄', '🎅', '🎁', '❄️', '⛄'],
+    minimal:    [' '],
+    romance:    ['💕', '🌹', '💌', '🫶', '💋'],
+    horror:     ['💀', '🩸', '🕷️', '🦇', '⚰️'],
+    suspense:   ['🔦', '🕵️', '🔍', '🚪', '🌑'],
+    pro:        [' '],
   };
   const list = emojis[frame] || emojis.kawaii;
   ctx.font = '22px serif';
@@ -685,24 +1154,28 @@ function drawPattern(ctx, w, h, frame) {
 
 function drawHeader(ctx, w, headerH, frame) {
   const colors = {
-    kawaii:  { title: '#e0508f', sub: '#c084fc' },
-    retro:   { title: '#8b5e3c', sub: '#a0522d' },
-    rainbow: { title: '#ff6b6b', sub: '#4d96ff' },
-    star:    { title: '#fbbf24', sub: '#f9a8d4' },
-    mint:    { title: '#059669', sub: '#34d399' },
-    dark:    { title: '#e5e7eb', sub: '#9ca3af' },
+    kawaii:     { title: '#e0508f', sub: '#c084fc' },
+    retro:      { title: '#8b5e3c', sub: '#a0522d' },
+    rainbow:    { title: '#ff6b6b', sub: '#4d96ff' },
+    star:       { title: '#fbbf24', sub: '#f9a8d4' },
+    mint:       { title: '#059669', sub: '#34d399' },
+    dark:       { title: '#e5e7eb', sub: '#9ca3af' },
     valentines: { title: '#ff4d4d', sub: '#e60000' },
-    ocean:   { title: '#ffffff', sub: '#e0f7fa' },
-    autumn:  { title: '#5c0000', sub: '#8a0000' },
-    y2k:     { title: '#ffffff', sub: '#ff00ff' },
-    floral:  { title: '#ff758c', sub: '#ff7eb3' },
-    space:   { title: '#8e2de2', sub: '#4a00e0' },
-    clouds:  { title: '#ffffff', sub: '#0052d4' },
-    sunset:  { title: '#ff0844', sub: '#ffb199' },
-    candy:   { title: '#a18cd1', sub: '#fbc2eb' },
-    halloween: { title: '#000000', sub: '#ff4e50' },
-    xmas:    { title: '#c31432', sub: '#240b36' },
-    minimal: { title: '#333333', sub: '#666666' },
+    ocean:      { title: '#ffffff', sub: '#e0f7fa' },
+    autumn:     { title: '#5c0000', sub: '#8a0000' },
+    y2k:        { title: '#ffffff', sub: '#ff00ff' },
+    floral:     { title: '#ff758c', sub: '#ff7eb3' },
+    space:      { title: '#8e2de2', sub: '#4a00e0' },
+    clouds:     { title: '#ffffff', sub: '#0052d4' },
+    sunset:     { title: '#ff0844', sub: '#ffb199' },
+    candy:      { title: '#a18cd1', sub: '#fbc2eb' },
+    halloween:  { title: '#000000', sub: '#ff4e50' },
+    xmas:       { title: '#c31432', sub: '#240b36' },
+    minimal:    { title: '#333333', sub: '#666666' },
+    romance:    { title: '#d63384', sub: '#e91e8c' },
+    horror:     { title: '#cc0000', sub: '#ff4444' },
+    suspense:   { title: '#adb5bd', sub: '#6c757d' },
+    pro:        { title: '#111111', sub: '#444444' },
   };
   const col = colors[frame] || colors.kawaii;
 
@@ -813,7 +1286,7 @@ function drawFooter(ctx, w, h, footerH, frame) {
     minimal: { line: '#cccccc', text: '#333333', date: '#666666' },
     romance: { line: '#ffb3b3', text: '#e60000', date: '#ff4d4d' },
     horror:  { line: '#330000', text: '#990000', date: '#660000' },
-    suspense:{ line: '#1f4037', text: '#000000', date: '#333333' },
+    suspense:{ line: '#4a9eff', text: '#adb5bd', date: '#6c757d' },
     pro:     { line: '#e0e0e0', text: '#222222', date: '#555555' },
   };
   const col = colors[frame] || colors.kawaii;
@@ -933,4 +1406,134 @@ if ('serviceWorker' in navigator) {
       }
     });
   });
+}
+
+// ── File Upload Helper ────────────────────────────────
+let uploadedPhotos = [];
+
+function handleFiles(files) {
+  const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+  if (imageFiles.length === 0) {
+    showToast('⚠️ Pilih file gambar yang valid!');
+    return;
+  }
+  
+  const max = state.photoCount;
+  const filesToProcess = imageFiles.slice(0, max);
+  
+  uploadPreview.innerHTML = '';
+  uploadedPhotos = [];
+  
+  filesToProcess.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const w = 1280;
+        const h = 720;
+        hiddenCanvas.width = w;
+        hiddenCanvas.height = h;
+        const ctx = hiddenCanvas.getContext('2d');
+        
+        const imgRatio = img.width / img.height;
+        const canvasRatio = w / h;
+        let drawW, drawH, drawX, drawY;
+        
+        if (imgRatio > canvasRatio) {
+          drawH = h;
+          drawW = img.width * (h / img.height);
+          drawX = (w - drawW) / 2;
+          drawY = 0;
+        } else {
+          drawW = w;
+          drawH = img.height * (w / img.width);
+          drawX = 0;
+          drawY = (h - drawH) / 2;
+        }
+        
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+        uploadedPhotos.push(hiddenCanvas.toDataURL('image/png', 1.0));
+        
+        const previewImg = document.createElement('img');
+        previewImg.src = e.target.result;
+        uploadPreview.appendChild(previewImg);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  showToast(`✅ ${filesToProcess.length} foto dipilih!`);
+}
+
+// ── Gallery Helpers ───────────────────────────────────
+async function openGallery() {
+  galleryModal.style.display = 'flex';
+  galleryModal.setAttribute('aria-hidden', 'false');
+  const items = await loadGallery();
+  galleryGrid.innerHTML = '';
+  
+  if (items.length === 0) {
+    emptyGallery.style.display = 'flex';
+    clearGalleryBtn.style.display = 'none';
+  } else {
+    emptyGallery.style.display = 'none';
+    clearGalleryBtn.style.display = 'flex';
+    
+    items.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'gallery-item';
+      
+      const img = document.createElement('img');
+      img.src = item.image;
+      
+      const actions = document.createElement('div');
+      actions.className = 'gallery-item-actions';
+      
+      const btnPrint = document.createElement('button');
+      btnPrint.className = 'gallery-action-btn';
+      btnPrint.innerHTML = '🖨️';
+      btnPrint.title = 'Cetak';
+      btnPrint.onclick = () => printFromGallery(item.image);
+      
+      const btnDl = document.createElement('button');
+      btnDl.className = 'gallery-action-btn';
+      btnDl.innerHTML = '💾';
+      btnDl.title = 'Download';
+      btnDl.onclick = () => downloadFromGallery(item.image);
+      
+      const btnDel = document.createElement('button');
+      btnDel.className = 'gallery-action-btn';
+      btnDel.innerHTML = '🗑️';
+      btnDel.title = 'Hapus';
+      btnDel.onclick = async () => {
+        deleteFromGallery(item.id);
+        await openGallery();
+        showToast('🗑️ Foto dihapus');
+      };
+      
+      actions.appendChild(btnPrint);
+      actions.appendChild(btnDl);
+      actions.appendChild(btnDel);
+      
+      div.appendChild(img);
+      div.appendChild(actions);
+      galleryGrid.appendChild(div);
+    });
+  }
+}
+
+function downloadFromGallery(dataURL) {
+  const link = document.createElement('a');
+  link.download = `cutebooth_gallery_${Date.now()}.png`;
+  link.href = dataURL;
+  link.click();
+  showToast('💾 Foto didownload!');
+}
+
+function printFromGallery(dataURL) {
+  printContainer.innerHTML = `<img src="${dataURL}" alt="Strip Foto" style="max-width:100%;height:auto;"/>`;
+  showToast('🖨️ Membuka dialog cetak...');
+  setTimeout(() => { window.print(); }, 400);
 }

@@ -167,6 +167,7 @@ body {
   height: 100%;
   z-index: 5;
   pointer-events: none;
+  object-fit: cover;
 }
 
 /* Corner Decorations */

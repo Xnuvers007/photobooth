@@ -146,29 +146,25 @@ function bindEvents() {
           const ctx = faceOverlay.getContext('2d');
           ctx.clearRect(0, 0, faceOverlay.width, faceOverlay.height);
 
-          if (state.mirror) {
-            ctx.save();
-            ctx.translate(faceOverlay.width, 0);
-            ctx.scale(-1, 1);
-          }
-
           resizedDetections.forEach(detection => {
             const box = detection.box;
+            
+            let drawX = box.x;
+            if (state.mirror) {
+              drawX = faceOverlay.width - box.x - box.width;
+            }
+
             ctx.strokeStyle = '#ff6eb4';
             ctx.lineWidth = 4;
             ctx.setLineDash([8, 6]);
-            ctx.strokeRect(box.x, box.y, box.width, box.height);
+            ctx.strokeRect(drawX, box.y, box.width, box.height);
             ctx.setLineDash([]);
             
             // Draw cute text above the box
             ctx.fillStyle = '#ff6eb4';
             ctx.font = 'bold 18px Nunito';
-            ctx.fillText('✨ Cute Face ✨', box.x, box.y - 10);
+            ctx.fillText('✨ Cute Face ✨', drawX, box.y - 10);
           });
-
-          if (state.mirror) {
-            ctx.restore();
-          }
         } catch (err) {
            // ignore detection errors frame drops
         }

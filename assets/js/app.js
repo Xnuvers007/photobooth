@@ -131,44 +131,51 @@ function bindEvents() {
     if (typeof faceapi !== 'undefined') {
       faceapi.matchDimensions(faceOverlay, displaySize);
 
-      if (faceDetectionInterval) clearInterval(faceDetectionInterval);
+      let isDetecting = false;
       
-      faceDetectionInterval = setInterval(async () => {
-        if (video.paused || video.ended || state.capturing) {
-          faceOverlay.getContext('2d').clearRect(0, 0, faceOverlay.width, faceOverlay.height);
-          return;
+      async function detectLoop() {
+        if (video.paused || video.ended) return;
+        
+        if (!state.capturing && !isDetecting) {
+          isDetecting = true;
+          try {
+            // Lower inputSize for significantly better performance on mobile (default is 416)
+            const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+            const detections = await faceapi.detectAllFaces(video, options);
+            const resizedDetections = faceapi.resizeResults(detections, displaySize);
+
+            const ctx = faceOverlay.getContext('2d');
+            ctx.clearRect(0, 0, faceOverlay.width, faceOverlay.height);
+
+            resizedDetections.forEach(detection => {
+              const box = detection.box;
+              let drawX = box.x;
+              if (state.mirror) {
+                drawX = faceOverlay.width - box.x - box.width;
+              }
+
+              ctx.strokeStyle = '#ff6eb4';
+              ctx.lineWidth = 4;
+              ctx.setLineDash([8, 6]);
+              ctx.strokeRect(drawX, box.y, box.width, box.height);
+              ctx.setLineDash([]);
+              
+              ctx.fillStyle = '#ff6eb4';
+              ctx.font = 'bold 18px Nunito';
+              ctx.fillText('✨ Cute Face ✨', drawX, box.y - 10);
+            });
+          } catch (err) {
+            // ignore errors
+          }
+          isDetecting = false;
         }
 
-        try {
-          const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
-          const resizedDetections = faceapi.resizeResults(detections, displaySize);
+        // Request next frame delay (approx 150ms to save battery and reduce lag)
+        setTimeout(() => requestAnimationFrame(detectLoop), 150);
+      }
 
-          const ctx = faceOverlay.getContext('2d');
-          ctx.clearRect(0, 0, faceOverlay.width, faceOverlay.height);
-
-          resizedDetections.forEach(detection => {
-            const box = detection.box;
-            
-            let drawX = box.x;
-            if (state.mirror) {
-              drawX = faceOverlay.width - box.x - box.width;
-            }
-
-            ctx.strokeStyle = '#ff6eb4';
-            ctx.lineWidth = 4;
-            ctx.setLineDash([8, 6]);
-            ctx.strokeRect(drawX, box.y, box.width, box.height);
-            ctx.setLineDash([]);
-            
-            // Draw cute text above the box
-            ctx.fillStyle = '#ff6eb4';
-            ctx.font = 'bold 18px Nunito';
-            ctx.fillText('✨ Cute Face ✨', drawX, box.y - 10);
-          });
-        } catch (err) {
-           // ignore detection errors frame drops
-        }
-      }, 100);
+      // Start loop
+      detectLoop();
     }
   });
 

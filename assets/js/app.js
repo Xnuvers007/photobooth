@@ -14,6 +14,8 @@ const state = {
   timerDelay: 3,
   mirror: true,
   capturing: false,
+  facingMode: 'user', // 'user' for front, 'environment' for back
+  stripLayout: 'vertical' // 'vertical' or 'horizontal'
 };
 
 // ── DOM Refs ────────────────────────────────────────
@@ -39,6 +41,8 @@ const loadingText    = document.getElementById('loadingText');
 const printContainer = document.getElementById('printContainer');
 const frameOverlay   = document.getElementById('frameOverlay');
 const faceOverlay    = document.getElementById('faceOverlay');
+const switchCamBtn   = document.getElementById('switchCamBtn');
+const layoutToggle   = document.getElementById('layoutToggle');
 
 const customPhotoCount = document.getElementById('customPhotoCount');
 const customTimerDelay = document.getElementById('customTimerDelay');
@@ -70,7 +74,7 @@ async function startCamera() {
       video: {
         width:  { ideal: 1280 },
         height: { ideal: 720 },
-        facingMode: 'user'
+        facingMode: state.facingMode
       },
       audio: false,
     };
@@ -78,7 +82,7 @@ async function startCamera() {
       state.stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (e) {
       console.warn("Kamera resolusi tinggi gagal, mencoba pengaturan standar...", e);
-      constraints = { video: true, audio: false };
+      constraints = { video: { facingMode: state.facingMode }, audio: false };
       state.stream = await navigator.mediaDevices.getUserMedia(constraints);
     }
     video.srcObject = state.stream;
@@ -196,6 +200,28 @@ function bindEvents() {
     state.mirror = mirrorToggle.checked;
     video.classList.toggle('mirror-off', !state.mirror);
     mirrorBadge.style.opacity = state.mirror ? '1' : '0.35';
+  });
+
+  // Switch Camera
+  switchCamBtn.addEventListener('click', async () => {
+    state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
+    stopCamera();
+    
+    // Auto-disable mirror if using back camera
+    state.mirror = state.facingMode === 'user';
+    mirrorToggle.checked = state.mirror;
+    video.classList.toggle('mirror-off', !state.mirror);
+    mirrorBadge.style.opacity = state.mirror ? '1' : '0.35';
+
+    showLoading('Mengganti kamera... 📸');
+    await startCamera();
+    hideLoading();
+  });
+
+  // Strip Layout Toggle
+  layoutToggle.addEventListener('change', () => {
+    state.stripLayout = layoutToggle.checked ? 'horizontal' : 'vertical';
+    if (state.photos.length > 0) renderStrip();
   });
 
   // Retry camera
@@ -544,14 +570,21 @@ async function renderStrip() {
   const count = state.photos.length;
   if (count === 0) return;
 
-  // Photo dimensions on strip
   const PHOTO_W = 600;
   const PHOTO_H = Math.round(PHOTO_W * 0.75);   // 4:3
   const PAD     = 28;
   const HEADER  = 80;
   const FOOTER  = 90;
-  const TOTAL_W = PHOTO_W + PAD * 2;
-  const TOTAL_H = HEADER + count * PHOTO_H + (count - 1) * PAD + PAD * 2 + FOOTER;
+
+  let TOTAL_W, TOTAL_H;
+
+  if (state.stripLayout === 'horizontal') {
+    TOTAL_W = PAD * 2 + (PHOTO_W * count) + (PAD * (count - 1));
+    TOTAL_H = HEADER + PHOTO_H + PAD * 2 + FOOTER;
+  } else {
+    TOTAL_W = PHOTO_W + PAD * 2;
+    TOTAL_H = HEADER + count * PHOTO_H + (count - 1) * PAD + PAD * 2 + FOOTER;
+  }
 
   stripCanvas.width  = TOTAL_W;
   stripCanvas.height = TOTAL_H;
@@ -567,8 +600,15 @@ async function renderStrip() {
 
   // Photos
   for (let i = 0; i < count; i++) {
-    const y = HEADER + PAD + i * (PHOTO_H + PAD);
-    await drawPhoto(ctx, state.photos[i], PAD, y, PHOTO_W, PHOTO_H, state.currentFrame);
+    let x, y;
+    if (state.stripLayout === 'horizontal') {
+      x = PAD + i * (PHOTO_W + PAD);
+      y = HEADER + PAD;
+    } else {
+      x = PAD;
+      y = HEADER + PAD + i * (PHOTO_H + PAD);
+    }
+    await drawPhoto(ctx, state.photos[i], x, y, PHOTO_W, PHOTO_H, state.currentFrame);
   }
 
   // Footer
@@ -782,8 +822,13 @@ function drawFooter(ctx, w, h, footerH, frame) {
   ctx.lineWidth = 2;
   ctx.setLineDash([6, 4]);
   ctx.beginPath();
-  ctx.moveTo(20, y0 + 10);
-  ctx.lineTo(w - 20, y0 + 10);
+  if (state.stripLayout === 'horizontal') {
+    ctx.moveTo(w / 4, y0 + 10);
+    ctx.lineTo(w * 0.75, y0 + 10);
+  } else {
+    ctx.moveTo(20, y0 + 10);
+    ctx.lineTo(w - 20, y0 + 10);
+  }
   ctx.stroke();
   ctx.setLineDash([]);
 

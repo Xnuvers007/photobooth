@@ -1,4 +1,4 @@
-const CACHE_NAME = 'test';
+const CACHE_NAME = 'cutebooth-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

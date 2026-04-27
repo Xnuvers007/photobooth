@@ -75,7 +75,22 @@ async function startCamera() {
   } catch (err) {
     console.error('Camera error:', err);
     camWarning.style.display = 'flex';
-    showToast('⚠️ Kamera tidak bisa diakses!');
+    
+    const warningText = camWarning.querySelector('p');
+    if (warningText) {
+      if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        showToast('⚠️ Kamera sedang dipakai aplikasi lain!');
+        warningText.innerHTML = 'Kamera tidak bisa diakses karena <b>sedang digunakan oleh aplikasi lain</b> (seperti Zoom/Meet). Tutup aplikasi tersebut dan coba lagi.';
+      } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        showToast('⚠️ Izin kamera ditolak!');
+        warningText.innerHTML = '⚠️ Izin kamera ditolak. Pastikan kamu <b>mengizinkan (allow)</b> akses kamera di pengaturan browser!';
+      } else {
+        showToast('⚠️ Kamera tidak bisa diakses!');
+        warningText.innerHTML = '⚠️ Kamera tidak dapat diakses. Pastikan kamera terhubung dengan benar!';
+      }
+    } else {
+      showToast('⚠️ Kamera tidak bisa diakses!');
+    }
   }
 }
 

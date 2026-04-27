@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <!-- HTML Meta Tags -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; script-src 'self' 'unsafe-inline';">
+  
+  <title>🌸 Cute Photobooth 🌸</title>
+  <meta name="description" content="Aplikasi Photobooth lucu, keren, dan responsif. Ambil foto dengan berbagai pilihan filter kekinian dan bingkai aesthetic. Cetak langsung dari browser kamu dengan kualitas tinggi!">
+  <meta name="language" content="id">
+  <meta name="author" content="Xnuvers007 (https://github.com/Xnuvers007)">
+  <meta name="keywords" content="photobooth, aplikasi photobooth gratis, online photobooth, foto box, kawaii photobooth, filter foto, frame lucu, photo strip generator, web photobooth">
+  <meta name="robots" content="index, follow">
+
+  <!-- Google / Search Engine Tags -->
+  <meta itemprop="name" content="🌸 Cute Photobooth 🌸">
+  <meta itemprop="description" content="Aplikasi Photobooth lucu, keren, dan responsif. Ambil foto dengan berbagai pilihan filter kekinian dan bingkai aesthetic.">
+  <meta itemprop="image" content="https://xnuvers007.github.io/photobooth/assets/images/preview.png">
+
+  <!-- Facebook Meta Tags -->
+  <meta property="og:url" content="https://xnuvers007.github.io/photobooth">
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="🌸 Cute Photobooth 🌸" />
+  <meta property="og:description" content="Aplikasi Photobooth lucu, keren, dan responsif. Ambil foto dengan berbagai pilihan filter kekinian dan bingkai aesthetic." />
+  <meta property="og:image" content="https://xnuvers007.github.io/photobooth/assets/images/preview.png" />
+  <meta property="og:site_name" content="Cute Photobooth by Xnuvers007" />
+
+  <!-- Twitter Meta Tags -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="🌸 Cute Photobooth 🌸" />
+  <meta name="twitter:description" content="Aplikasi Photobooth lucu, keren, dan responsif. Ambil foto dengan berbagai pilihan filter kekinian dan bingkai aesthetic." />
+  <meta name="twitter:image" content="https://xnuvers007.github.io/photobooth/assets/images/preview.png" />
+
+  <!-- Advanced SEO & PWA Meta Tags -->
+  <meta name="theme-color" content="#ff6eb4">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CuteBooth">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="CuteBooth">
+  <meta name="rating" content="general">
+  <meta name="distribution" content="global">
+  
+  <!-- Canonical URL (Penting untuk SEO agar Google tidak mencatat duplikasi konten) -->
+  <link rel="canonical" href="https://xnuvers007.github.io/photobooth/">
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Favicon & Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/images/apple-touch-icon.png">
+
+  <!-- Meta Tags Generated via https://github.com/Xnuvers007/Meta-Generator -->
+
+  <!-- Fonts & Styles -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+
+  <!-- Floating Bubbles Background -->
+  <div class="bubbles" aria-hidden="true">
+    <span class="bubble"></span><span class="bubble"></span>
+    <span class="bubble"></span><span class="bubble"></span>
+    <span class="bubble"></span><span class="bubble"></span>
+    <span class="bubble"></span><span class="bubble"></span>
+    <span class="bubble"></span><span class="bubble"></span>
+  </div>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="logo">
+      <span class="logo-icon">📸</span>
+      <h1 class="logo-text">Cute<span>Booth</span></h1>
+    </div>
+    <p class="tagline">✨ Foto Keren, Kenangan Indah! ✨</p>
+  </header>
+
+  <!-- Main App -->
+  <main class="app-container">
+
+    <!-- LEFT: Camera & Controls -->
+    <section class="camera-section" aria-label="Kamera Photobooth">
+
+      <!-- Camera View -->
+      <div class="camera-wrapper" id="cameraWrapper">
+        <div class="camera-frame-overlay" id="frameOverlay" aria-hidden="true"></div>
+        <video id="videoFeed" autoplay playsinline muted></video>
+        <canvas id="hiddenCanvas" style="display:none;"></canvas>
+
+        <!-- Countdown Overlay -->
+        <div class="countdown-overlay" id="countdownOverlay" aria-live="assertive">
+          <span class="countdown-number" id="countdownNumber"></span>
+        </div>
+
+        <!-- Flash Effect -->
+        <div class="flash-effect" id="flashEffect" aria-hidden="true"></div>
+
+        <!-- Mirror Badge -->
+        <div class="mirror-badge" id="mirrorBadge">🪞 Mirror</div>
+
+        <!-- Corner Decorations -->
+        <div class="corner-deco corner-tl" aria-hidden="true">🌸</div>
+        <div class="corner-deco corner-tr" aria-hidden="true">⭐</div>
+        <div class="corner-deco corner-bl" aria-hidden="true">🌈</div>
+        <div class="corner-deco corner-br" aria-hidden="true">💖</div>
+      </div>
+
+      <!-- Controls Panel -->
+      <div class="controls-panel">
+
+        <!-- Filter Selector -->
+        <div class="control-group" id="filterGroup">
+          <div class="control-label" id="lbl-filter">🎨 Filter</div>
+          <div class="filter-pills" id="filterPills" role="listbox" aria-labelledby="lbl-filter">
+            <button class="pill active" data-filter="none" id="filter-none" role="option" aria-selected="true">Normal</button>
+            <button class="pill" data-filter="grayscale" id="filter-grayscale" role="option" aria-selected="false">B&W 🖤</button>
+            <button class="pill" data-filter="sepia" id="filter-sepia" role="option" aria-selected="false">Vintage 📷</button>
+            <button class="pill" data-filter="warm" id="filter-warm" role="option" aria-selected="false">Warm 🌅</button>
+            <button class="pill" data-filter="cool" id="filter-cool" role="option" aria-selected="false">Cool 💙</button>
+            <button class="pill" data-filter="vivid" id="filter-vivid" role="option" aria-selected="false">Vivid 🌈</button>
+            <button class="pill" data-filter="dreamy" id="filter-dreamy" role="option" aria-selected="false">Dreamy 🌸</button>
+            <button class="pill" data-filter="neon" id="filter-neon" role="option" aria-selected="false">Neon ⚡</button>
+            <button class="pill" data-filter="pastel" id="filter-pastel" role="option" aria-selected="false">Pastel 🦄</button>
+            <button class="pill" data-filter="cinema" id="filter-cinema" role="option" aria-selected="false">Cinema 🎬</button>
+            <button class="pill" data-filter="retro-pop" id="filter-retro-pop" role="option" aria-selected="false">Retro Pop 🍭</button>
+            <button class="pill" data-filter="cyberpunk" id="filter-cyberpunk" role="option" aria-selected="false">Cyberpunk 🌃</button>
+            <button class="pill" data-filter="polaroid" id="filter-polaroid" role="option" aria-selected="false">Polaroid 🎞️</button>
+            <button class="pill" data-filter="noir" id="filter-noir" role="option" aria-selected="false">Noir 🕶️</button>
+            <button class="pill" data-filter="golden" id="filter-golden" role="option" aria-selected="false">Golden Hour 🌅</button>
+            <button class="pill" data-filter="emerald" id="filter-emerald" role="option" aria-selected="false">Emerald 💎</button>
+            <button class="pill" data-filter="twilight" id="filter-twilight" role="option" aria-selected="false">Twilight 🌌</button>
+            <button class="pill" data-filter="acid" id="filter-acid" role="option" aria-selected="false">Acid 😵</button>
+            <button class="pill" data-filter="matrix" id="filter-matrix" role="option" aria-selected="false">Matrix 📟</button>
+          </div>
+
+        <!-- Photo Count -->
+        <div class="control-group">
+          <div class="control-label" id="lbl-count">📷 Jumlah Foto</div>
+          <div class="count-pills" id="countPills" role="listbox" aria-labelledby="lbl-count">
+            <button class="pill" data-count="1" id="count-1" role="option" aria-selected="false">1</button>
+            <button class="pill active" data-count="3" id="count-3" role="option" aria-selected="true">3</button>
+            <button class="pill" data-count="4" id="count-4" role="option" aria-selected="false">4</button>
+            <button class="pill" data-count="6" id="count-6" role="option" aria-selected="false">6</button>
+            <input type="number" id="customPhotoCount" class="custom-input pill" placeholder="Kustom" min="1" max="20" aria-label="Jumlah custom">
+          </div>
+        </div>
+
+        <!-- Timer Delay -->
+        <div class="control-group">
+          <div class="control-label" id="lbl-timer">⏱️ Timer</div>
+          <div class="count-pills" id="timerPills" role="listbox" aria-labelledby="lbl-timer">
+            <button class="pill" data-timer="0" id="timer-0" role="option" aria-selected="false">Off</button>
+            <button class="pill active" data-timer="3" id="timer-3" role="option" aria-selected="true">3s</button>
+            <button class="pill" data-timer="5" id="timer-5" role="option" aria-selected="false">5s</button>
+            <button class="pill" data-timer="10" id="timer-10" role="option" aria-selected="false">10s</button>
+            <input type="number" id="customTimerDelay" class="custom-input pill" placeholder="Kustom (s)" min="1" max="60" aria-label="Timer custom">
+          </div>
+        </div>
+
+        <!-- Mirror Toggle -->
+        <div class="control-group toggle-group">
+          <label class="control-label" for="mirrorToggle">🪞 Mirror Mode</label>
+          <label class="toggle-switch" for="mirrorToggle">
+            <input type="checkbox" id="mirrorToggle" checked />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          </label>
+        </div>
+
+        <!-- Shutter Button -->
+        <button class="shutter-btn" id="shutterBtn" aria-label="Ambil foto">
+          <span class="shutter-icon">📸</span>
+          <span class="shutter-text">Ambil Foto!</span>
+        </button>
+
+        <!-- Camera Permission Warning -->
+        <div class="cam-warning" id="camWarning" role="alert" style="display:none;">
+          <span>⚠️</span>
+          <p>Kamera tidak dapat diakses. Pastikan kamu memberikan izin kamera!</p>
+          <button id="retryCamBtn" class="retry-btn">Coba Lagi</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- RIGHT: Frame Picker + Strip Preview -->
+    <section class="right-section" aria-label="Hasil dan bingkai foto">
+
+      <!-- Frame Picker -->
+      <div class="panel frame-panel">
+        <h2 class="panel-title">🖼️ Pilih Bingkai</h2>
+        <div class="frame-grid" id="frameGrid" role="listbox" aria-label="Pilih bingkai">
+          <button class="frame-option active" data-frame="kawaii" id="frame-kawaii" role="option" aria-selected="true">
+            <span class="frame-preview kawaii-prev"></span>
+            <span>Kawaii 🌸</span>
+          </button>
+          <button class="frame-option" data-frame="retro" id="frame-retro" role="option" aria-selected="false">
+            <span class="frame-preview retro-prev"></span>
+            <span>Retro 📟</span>
+          </button>
+          <button class="frame-option" data-frame="rainbow" id="frame-rainbow" role="option" aria-selected="false">
+            <span class="frame-preview rainbow-prev"></span>
+            <span>Rainbow 🌈</span>
+          </button>
+          <button class="frame-option" data-frame="star" id="frame-star" role="option" aria-selected="false">
+            <span class="frame-preview star-prev"></span>
+            <span>Starry ⭐</span>
+          </button>
+          <button class="frame-option" data-frame="mint" id="frame-mint" role="option" aria-selected="false">
+            <span class="frame-preview mint-prev"></span>
+            <span>Mint 🍃</span>
+          </button>
+          <button class="frame-option" data-frame="dark" id="frame-dark" role="option" aria-selected="false">
+            <span class="frame-preview dark-prev"></span>
+            <span>Dark 🌙</span>
+          </button>
+          <button class="frame-option" data-frame="valentines" id="frame-valentines" role="option" aria-selected="false">
+            <span class="frame-preview valentines-prev"></span>
+            <span>Love 💖</span>
+          </button>
+          <button class="frame-option" data-frame="ocean" id="frame-ocean" role="option" aria-selected="false">
+            <span class="frame-preview ocean-prev"></span>
+            <span>Ocean 🌊</span>
+          </button>
+          <button class="frame-option" data-frame="autumn" id="frame-autumn" role="option" aria-selected="false">
+            <span class="frame-preview autumn-prev"></span>
+            <span>Autumn 🍁</span>
+          </button>
+          <button class="frame-option" data-frame="y2k" id="frame-y2k" role="option" aria-selected="false">
+            <span class="frame-preview y2k-prev"></span>
+            <span>Y2K ✨</span>
+          </button>
+          <button class="frame-option" data-frame="floral" id="frame-floral" role="option" aria-selected="false">
+            <span class="frame-preview floral-prev"></span>
+            <span>Floral 🌺</span>
+          </button>
+          <button class="frame-option" data-frame="space" id="frame-space" role="option" aria-selected="false">
+            <span class="frame-preview space-prev"></span>
+            <span>Space 🚀</span>
+          </button>
+          <button class="frame-option" data-frame="clouds" id="frame-clouds" role="option" aria-selected="false">
+            <span class="frame-preview clouds-prev"></span>
+            <span>Clouds ☁️</span>
+          </button>
+          <button class="frame-option" data-frame="sunset" id="frame-sunset" role="option" aria-selected="false">
+            <span class="frame-preview sunset-prev"></span>
+            <span>Sunset 🌆</span>
+          </button>
+          <button class="frame-option" data-frame="candy" id="frame-candy" role="option" aria-selected="false">
+            <span class="frame-preview candy-prev"></span>
+            <span>Candy 🍬</span>
+          </button>
+          <button class="frame-option" data-frame="halloween" id="frame-halloween" role="option" aria-selected="false">
+            <span class="frame-preview halloween-prev"></span>
+            <span>Spooky 🎃</span>
+          </button>
+          <button class="frame-option" data-frame="xmas" id="frame-xmas" role="option" aria-selected="false">
+            <span class="frame-preview xmas-prev"></span>
+            <span>Xmas 🎄</span>
+          </button>
+          <button class="frame-option" data-frame="minimal" id="frame-minimal" role="option" aria-selected="false">
+            <span class="frame-preview minimal-prev"></span>
+            <span>Minimal ⚪</span>
+          </button>
+        </div>
+      </div>
+      <!-- Strip Preview -->
+      <div class="panel strip-panel">
+        <h2 class="panel-title">🎞️ Hasil Strip Foto</h2>
+
+        <div class="strip-preview-wrapper" id="stripPreviewWrapper">
+          <canvas id="stripCanvas"></canvas>
+          <div class="empty-strip" id="emptyStrip">
+            <div class="empty-icon">📷</div>
+            <p>Belum ada foto!<br/>Ambil foto dulu yuk~ ✨</p>
+          </div>
+        </div>
+
+        <!-- Strip Actions -->
+        <div class="strip-actions" id="stripActions" style="display:none;">
+          <button class="action-btn download-btn" id="downloadBtn" aria-label="Download foto">
+            💾 Download
+          </button>
+          <button class="action-btn print-btn" id="printBtn" aria-label="Cetak foto">
+            🖨️ Cetak
+          </button>
+          <button class="action-btn retake-btn" id="retakeBtn" aria-label="Ambil foto ulang">
+            🔄 Ulang
+          </button>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Print Container (hidden, used for printing) -->
+  <div id="printContainer" class="print-container" aria-hidden="true"></div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toastMsg" role="status" aria-live="polite"></div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay" style="display:none;" aria-live="polite">
+    <div class="loader-content">
+      <div class="spinner"></div>
+      <p id="loadingText">Mempersiapkan kamera...</p>
+    </div>
+  </div>
+
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

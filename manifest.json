@@ -1,0 +1,39 @@
+{
+  "name": "CuteBooth - Kawaii Photobooth",
+  "short_name": "CuteBooth",
+  "description": "Aplikasi Photobooth lucu, keren, dan responsif. Ambil foto dengan berbagai pilihan filter kekinian dan bingkai aesthetic.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#fce7f3",
+  "theme_color": "#ff6eb4",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "assets/images/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/images/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/images/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/images/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/images/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -159,6 +159,16 @@ body {
 }
 #videoFeed.mirror-off { transform: scaleX(1); }
 
+#faceOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  pointer-events: none;
+}
+
 /* Corner Decorations */
 .corner-deco {
   position: absolute;
@@ -497,7 +507,10 @@ body {
 .halloween-prev { background: linear-gradient(135deg, #ff4e50, #f9d423); border: 3px solid #000000; }
 .xmas-prev { background: linear-gradient(135deg, #11998e, #38ef7d); border: 3px solid #c31432; }
 .minimal-prev { background: #fdfbfb; border: 3px solid #e2d1c3; }
-.autumn-prev { background: linear-gradient(135deg, #f12711, #f5af19); border: 3px solid #c21807; }
+.romance-prev { background: linear-gradient(135deg, #ff9a9e, #fecfef); border: 3px dashed #ff4d4d; }
+.horror-prev { background: #1a1a1a; border: 3px solid #660000; }
+.suspense-prev { background: linear-gradient(135deg, #1f4037, #99f2c8); border: 3px solid #000; border-top: 8px solid #000; border-bottom: 8px solid #000; }
+.pro-prev { background: #ffffff; border: 3px solid #ccc; box-shadow: inset 0 0 5px rgba(0,0,0,0.2); }
 
 /* ---------- Strip Preview ---------- */
 .strip-preview-wrapper {

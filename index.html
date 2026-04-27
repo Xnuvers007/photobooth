@@ -4,7 +4,7 @@
   <!-- HTML Meta Tags -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; script-src 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; script-src 'self'; connect-src 'self' https://my-cors-proxy.zenth.workers.dev;">
   
   <title>🌸 Cute Photobooth 🌸</title>
   <meta name="description" content="Aplikasi Photobooth lucu, keren, dan responsif. Ambil foto dengan berbagai pilihan filter kekinian dan bingkai aesthetic. Cetak langsung dari browser kamu dengan kualitas tinggi!">
@@ -91,6 +91,7 @@
       <div class="camera-wrapper" id="cameraWrapper">
         <div class="camera-frame-overlay" id="frameOverlay" aria-hidden="true"></div>
         <video id="videoFeed" autoplay playsinline muted></video>
+        <canvas id="faceOverlay"></canvas>
         <canvas id="hiddenCanvas" style="display:none;"></canvas>
 
         <!-- Countdown Overlay -->
@@ -137,6 +138,10 @@
             <button class="pill" data-filter="twilight" id="filter-twilight" role="option" aria-selected="false">Twilight 🌌</button>
             <button class="pill" data-filter="acid" id="filter-acid" role="option" aria-selected="false">Acid 😵</button>
             <button class="pill" data-filter="matrix" id="filter-matrix" role="option" aria-selected="false">Matrix 📟</button>
+            <button class="pill" data-filter="romance" id="filter-romance" role="option" aria-selected="false">Romance 💕</button>
+            <button class="pill" data-filter="horror" id="filter-horror" role="option" aria-selected="false">Horror 🩸</button>
+            <button class="pill" data-filter="suspense" id="filter-suspense" role="option" aria-selected="false">Suspense 🕵️</button>
+            <button class="pill" data-filter="pro" id="filter-pro" role="option" aria-selected="false">Pro 📸</button>
           </div>
 
         <!-- Photo Count -->
@@ -267,6 +272,22 @@
             <span class="frame-preview minimal-prev"></span>
             <span>Minimal ⚪</span>
           </button>
+          <button class="frame-option" data-frame="romance" id="frame-romance" role="option" aria-selected="false">
+            <span class="frame-preview romance-prev"></span>
+            <span>Romance 💕</span>
+          </button>
+          <button class="frame-option" data-frame="horror" id="frame-horror" role="option" aria-selected="false">
+            <span class="frame-preview horror-prev"></span>
+            <span>Horror 🩸</span>
+          </button>
+          <button class="frame-option" data-frame="suspense" id="frame-suspense" role="option" aria-selected="false">
+            <span class="frame-preview suspense-prev"></span>
+            <span>Suspense 🕵️</span>
+          </button>
+          <button class="frame-option" data-frame="pro" id="frame-pro" role="option" aria-selected="false">
+            <span class="frame-preview pro-prev"></span>
+            <span>Pro 📸</span>
+          </button>
         </div>
       </div>
       <!-- Strip Preview -->
@@ -312,6 +333,7 @@
     </div>
   </div>
 
+  <script src="assets/js/face-api.min.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>

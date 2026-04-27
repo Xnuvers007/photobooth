@@ -38,12 +38,25 @@ const loadingOverlay = document.getElementById('loadingOverlay');
 const loadingText    = document.getElementById('loadingText');
 const printContainer = document.getElementById('printContainer');
 const frameOverlay   = document.getElementById('frameOverlay');
+const faceOverlay    = document.getElementById('faceOverlay');
 
 const customPhotoCount = document.getElementById('customPhotoCount');
 const customTimerDelay = document.getElementById('customTimerDelay');
 
 // ── Init ────────────────────────────────────────────
 (async function init() {
+  try {
+    showLoading('Menyiapkan AI Data Wajah... 🤖');
+    // Jika dijalankan langsung dari file:// (tanpa server lokal), gunakan proxy CORS agar tidak diblokir browser.
+    const MODEL_URL = window.location.protocol === 'file:' 
+      ? 'https://my-cors-proxy.zenth.workers.dev/?url=https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights'
+      : './assets/models';
+      
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+  } catch (err) {
+    console.error('Gagal memuat model AI wajah:', err);
+  }
+  
   showLoading('Mempersiapkan kamera... 📸');
   await startCamera();
   hideLoading();
@@ -102,7 +115,63 @@ function stopCamera() {
 }
 
 // ── Events ──────────────────────────────────────────
+let faceDetectionInterval;
+
 function bindEvents() {
+  // Face Detection on Video Play
+  video.addEventListener('play', () => {
+    const displaySize = { width: video.videoWidth || 1280, height: video.videoHeight || 720 };
+    faceOverlay.width = displaySize.width;
+    faceOverlay.height = displaySize.height;
+    
+    if (typeof faceapi !== 'undefined') {
+      faceapi.matchDimensions(faceOverlay, displaySize);
+
+      if (faceDetectionInterval) clearInterval(faceDetectionInterval);
+      
+      faceDetectionInterval = setInterval(async () => {
+        if (video.paused || video.ended || state.capturing) {
+          faceOverlay.getContext('2d').clearRect(0, 0, faceOverlay.width, faceOverlay.height);
+          return;
+        }
+
+        try {
+          const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+          const resizedDetections = faceapi.resizeResults(detections, displaySize);
+
+          const ctx = faceOverlay.getContext('2d');
+          ctx.clearRect(0, 0, faceOverlay.width, faceOverlay.height);
+
+          if (state.mirror) {
+            ctx.save();
+            ctx.translate(faceOverlay.width, 0);
+            ctx.scale(-1, 1);
+          }
+
+          resizedDetections.forEach(detection => {
+            const box = detection.box;
+            ctx.strokeStyle = '#ff6eb4';
+            ctx.lineWidth = 4;
+            ctx.setLineDash([8, 6]);
+            ctx.strokeRect(box.x, box.y, box.width, box.height);
+            ctx.setLineDash([]);
+            
+            // Draw cute text above the box
+            ctx.fillStyle = '#ff6eb4';
+            ctx.font = 'bold 18px Nunito';
+            ctx.fillText('✨ Cute Face ✨', box.x, box.y - 10);
+          });
+
+          if (state.mirror) {
+            ctx.restore();
+          }
+        } catch (err) {
+           // ignore detection errors frame drops
+        }
+      }, 100);
+    }
+  });
+
   // Shutter
   shutterBtn.addEventListener('click', startCapture);
 
@@ -439,6 +508,32 @@ function applyCanvasFilter(ctx, w, h, filter) {
         data[i+2] = Math.min(255, b * 0.2);
         break;
       }
+      case 'romance': {
+        data[i]   = Math.min(255, r * 1.2 + 20);
+        data[i+1] = Math.min(255, g * 0.9 + 10);
+        data[i+2] = Math.min(255, b * 1.0 + 10);
+        break;
+      }
+      case 'horror': {
+        const gray = r*0.3 + g*0.59 + b*0.11;
+        data[i]   = Math.min(255, gray * 0.5 + 30);
+        data[i+1] = Math.min(255, gray * 0.2);
+        data[i+2] = Math.min(255, gray * 0.2);
+        break;
+      }
+      case 'suspense': {
+        data[i]   = Math.min(255, r * 0.6);
+        data[i+1] = Math.min(255, g * 1.1 + 10);
+        data[i+2] = Math.min(255, b * 1.2 + 20);
+        break;
+      }
+      case 'pro': {
+        const contrast = 1.2;
+        data[i]   = Math.min(255, ((r / 255 - 0.5) * contrast + 0.5) * 255 * 1.05);
+        data[i+1] = Math.min(255, ((g / 255 - 0.5) * contrast + 0.5) * 255 * 1.05);
+        data[i+2] = Math.min(255, ((b / 255 - 0.5) * contrast + 0.5) * 255 * 1.05);
+        break;
+      }
     }
   }
   ctx.putImageData(imageData, 0, 0);
@@ -624,6 +719,10 @@ function drawPhotoBorder(ctx, x, y, pw, ph, frame) {
     halloween: { color: '#000000', width: 5 },
     xmas:    { color: '#c31432', width: 5 },
     minimal: { color: '#e2d1c3', width: 2 },
+    romance: { color: '#ff4d4d', width: 8, dash: [10, 10] },
+    horror:  { color: '#660000', width: 15 },
+    suspense:{ color: '#000000', width: 10 },
+    pro:     { color: '#cccccc', width: 2 },
   };
   const b = borders[frame] || borders.kawaii;
   ctx.save();
@@ -641,8 +740,10 @@ function drawPhotoBorder(ctx, x, y, pw, ph, frame) {
     ctx.strokeStyle = b.color;
   }
 
+  if (b.dash) ctx.setLineDash(b.dash);
   roundRect(ctx, x, y, pw, ph, 12);
   ctx.stroke();
+  ctx.setLineDash([]);
   ctx.restore();
 }
 
@@ -667,6 +768,10 @@ function drawFooter(ctx, w, h, footerH, frame) {
     halloween: { line: '#f9d423', text: '#000000', date: '#ff4e50' },
     xmas:    { line: '#38ef7d', text: '#c31432', date: '#240b36' },
     minimal: { line: '#cccccc', text: '#333333', date: '#666666' },
+    romance: { line: '#ffb3b3', text: '#e60000', date: '#ff4d4d' },
+    horror:  { line: '#330000', text: '#990000', date: '#660000' },
+    suspense:{ line: '#1f4037', text: '#000000', date: '#333333' },
+    pro:     { line: '#e0e0e0', text: '#222222', date: '#555555' },
   };
   const col = colors[frame] || colors.kawaii;
 
@@ -766,6 +871,18 @@ if ('serviceWorker' in navigator) {
       })
       .catch(err => {
         console.error('[PWA] Service Worker registration failed:', err);
+        if (err.message && err.message.includes('Failed to access storage')) {
+          console.warn('[PWA] Mode Offline diblokir karena browser membatasi akses Storage (mungkin karena Incognito atau Block 3rd-Party Cookies).');
+        }
       });
+      
+    // Auto-update: Refresh otomatis saat ada pembaruan Service Worker
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        window.location.reload();
+        refreshing = true;
+      }
+    });
   });
 }

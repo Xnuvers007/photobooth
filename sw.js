@@ -1,10 +1,11 @@
-const CACHE_NAME = 'cutebooth-v3.1';
+const CACHE_NAME = 'cutebooth-v3.7';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './assets/css/style.css',
   './assets/js/app.js',
   './assets/js/face-api.min.js',
+  './assets/js/gifshot.min.js',
   './assets/models/tiny_face_detector_model-weights_manifest.json',
   './assets/models/tiny_face_detector_model-shard1',
   './manifest.json',

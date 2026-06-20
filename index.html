@@ -4,7 +4,7 @@
   <!-- HTML Meta Tags -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; script-src 'self'; connect-src 'self' https://my-cors-proxy.zenth.workers.dev;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com https://storage.googleapis.com https://tfhub.dev https://my-cors-proxy.zenth.workers.dev data: blob:; img-src 'self' data: blob: https:; media-src 'self' blob:; worker-src 'self' blob:;">
   
   <title>🌸 Cute Photobooth 🌸</title>
   <meta name="description" content="Aplikasi Photobooth lucu, keren, dan responsif. Ambil foto dengan berbagai pilihan filter kekinian dan bingkai aesthetic. Cetak langsung dari browser kamu dengan kualitas tinggi!">
@@ -228,8 +228,8 @@
 
         <!-- Camera Switch -->
         <div class="control-group toggle-group">
-          <label class="control-label" for="switchCamBtn">🔄 Kamera</label>
-          <button id="switchCamBtn" class="action-btn" style="flex: 0; padding: 6px 12px; margin:0;">Tukar 📸</button>
+          <div class="control-label">🔄 Kamera</div>
+          <button id="switchCamBtn" class="action-btn" style="flex: 0; padding: 6px 12px; margin:0;" aria-label="Tukar Kamera">Tukar 📸</button>
         </div>
 
         <!-- Strip Layout Toggle -->
@@ -243,8 +243,8 @@
 
         <!-- Print Type Selector -->
         <div class="control-group" id="printTypeGroup">
-          <label class="control-label">🖨️ Tipe Cetakan</label>
-          <div class="count-pills" id="printTypePills" role="listbox" aria-label="Pilih tipe cetakan">
+          <div class="control-label" id="lbl-printtype">🖨️ Tipe Cetakan</div>
+          <div class="count-pills" id="printTypePills" role="listbox" aria-labelledby="lbl-printtype">
             <button class="pill active" data-printtype="strip"     id="ptype-strip"     role="option" aria-selected="true">📋 Standard</button>
             <button class="pill"        data-printtype="polaroid"  id="ptype-polaroid"  role="option" aria-selected="false">🎞️ Polaroid</button>
             <button class="pill"        data-printtype="filmstrip" id="ptype-filmstrip" role="option" aria-selected="false">🎬 Film Strip</button>
@@ -259,8 +259,8 @@
         <div class="control-group">
           <div class="control-label" id="lbl-customtext">✍️ Kustom Teks</div>
           <div style="display:flex; flex-direction:column; gap:8px;">
-            <input type="text" id="customTitleInput" class="custom-input pill" placeholder="Judul (misal: CUTEBOOTH)" style="width: 100%; text-align: left; padding-left: 12px;">
-            <input type="text" id="customSubInput" class="custom-input pill" placeholder="Sub-teks (misal: Kenangan Manis)" style="width: 100%; text-align: left; padding-left: 12px;">
+            <input type="text" id="customTitleInput" class="custom-input pill" placeholder="Judul (misal: CUTEBOOTH)" style="width: 100%; text-align: left; padding-left: 12px;" aria-label="Judul Foto">
+            <input type="text" id="customSubInput" class="custom-input pill" placeholder="Sub-teks (misal: Kenangan Manis)" style="width: 100%; text-align: left; padding-left: 12px;" aria-label="Sub-teks Foto">
           </div>
         </div>
 
@@ -278,6 +278,36 @@
             <input type="checkbox" id="bgmToggle" />
             <span class="toggle-track"><span class="toggle-thumb"></span></span>
           </label>
+        </div>
+        <div class="control-group toggle-group" style="margin-bottom:15px;">
+          <label class="control-label" for="greenScreenToggle">🟩 Green Screen</label>
+          <label class="toggle-switch" for="greenScreenToggle">
+            <input type="checkbox" id="greenScreenToggle" />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          </label>
+        </div>
+
+        <!-- GS Background Settings -->
+        <div id="gsSettings" class="control-group" style="display:none; margin-bottom:15px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+          <div class="control-label" style="font-size: 0.9rem; margin-bottom: 10px;">Latar Green Screen</div>
+          <div style="display: flex; gap: 10px; flex-direction: column;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="color" id="gsColorPicker" value="#a18cd1" style="width: 40px; height: 40px; border: none; border-radius: 8px; cursor: pointer; background: transparent;" aria-label="Warna Green Screen">
+              <span style="font-size: 0.85rem;">Warna Solid</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <button class="pill" id="gsUploadBtn" style="flex:1; margin:0; font-size: 0.85rem; padding: 8px;">Unggah Gambar 🖼️</button>
+              <input type="file" id="gsFileInput" accept="image/*" style="display:none;">
+            </div>
+            <div id="gsImageOptions" style="display:none; flex-direction: column; gap: 5px;">
+              <div id="gsFileName" style="font-size: 0.75rem; color:#aaa; text-align: center;"></div>
+              <select id="gsBgMode" class="custom-input pill" style="font-size: 0.8rem; padding: 5px; width: 100%; text-align: center; cursor: pointer;">
+                <option value="cover">Penuhi Layar (Cover)</option>
+                <option value="contain">Pas Tengah (Fit)</option>
+                <option value="stretch">Tarik Penuh (Stretch)</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <!-- Gallery Button -->
@@ -398,12 +428,36 @@
           </div>
         </div>
 
+        <!-- Edit Toolbar -->
+        <div class="edit-toolbar" id="editToolbar" style="display:none; margin-top:15px; padding:15px; background:rgba(255,255,255,0.7); border-radius:15px; box-shadow:0 4px 15px rgba(0,0,0,0.05); gap:10px; flex-wrap:wrap; justify-content:center; border:2px solid #fff;">
+          <div style="display:flex; align-items:center; gap:5px; background:#fff; padding:5px 10px; border-radius:20px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+            <label for="brushColor" style="font-weight:700; color:#555;">🖌️</label>
+            <input type="color" id="brushColor" value="#ff3366" style="border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; background:none;">
+          </div>
+          <div style="display:flex; align-items:center; gap:5px; background:#fff; padding:5px 10px; border-radius:20px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+            <label for="brushSize" style="font-weight:700; color:#555;">Tebal</label>
+            <input type="range" id="brushSize" min="2" max="30" value="8" style="width:70px;">
+          </div>
+          <div style="display:flex; gap:5px; background:#fff; padding:5px; border-radius:20px; box-shadow:0 2px 5px rgba(0,0,0,0.05);" id="emojiContainer">
+             <button class="emoji-btn" style="font-size:1.4rem; background:none; border:none; cursor:pointer; filter:grayscale(100%); opacity:0.5;" title="Kuas" id="brushBtn">🖌️</button>
+             <div style="width:1px; background:#ddd; margin:0 5px;"></div>
+             <button class="emoji-btn" style="font-size:1.4rem; background:none; border:none; cursor:pointer;">❤️</button>
+             <button class="emoji-btn" style="font-size:1.4rem; background:none; border:none; cursor:pointer;">✨</button>
+             <button class="emoji-btn" style="font-size:1.4rem; background:none; border:none; cursor:pointer;">😭</button>
+             <button class="emoji-btn" style="font-size:1.4rem; background:none; border:none; cursor:pointer;">🔥</button>
+          </div>
+          <button id="undoBtn" class="action-btn" style="background:#f39c12; font-size:0.9rem; padding:8px 12px;">↩️ Undo</button>
+          <button id="saveEditBtn" class="action-btn" style="background:#20bf55; font-size:0.9rem; padding:8px 12px;">✅ Selesai</button>
+        </div>
+
         <!-- Strip Actions -->
-        <div class="strip-actions" id="stripActions" style="display:none;">
+        <div class="strip-actions" id="stripActions" style="display:none; flex-wrap:wrap;">
+          <button class="action-btn" id="editBtn" style="background:#9b59b6; width:100%; margin-bottom:10px;">🖌️ Edit Coret-coret</button>
           <button class="action-btn" id="downloadBtn" style="background:#20bf55;">⬇️ Download</button>
           <button class="action-btn" id="printBtn" style="background:#ff3366;">🖨️ Cetak</button>
-          <button class="action-btn" id="openNewTabBtn" style="background:#3498db;">👁️ Lihat</button>
-          <button class="action-btn" id="retakeBtn" style="background:#f39c12;">🔄 Ulang</button>
+          <button class="action-btn" id="gifBtn" style="background:#e84393; margin-top:5px;">🎥 Buat GIF</button>
+          <button class="action-btn" id="openNewTabBtn" style="background:#3498db; margin-top:5px;">👁️ Lihat</button>
+          <button class="action-btn" id="retakeBtn" style="background:#f39c12; margin-top:5px;">🔄 Ulang</button>
         </div>
       </div>
 
@@ -447,6 +501,9 @@
   </div>
 
   <script src="assets/js/face-api.min.js"></script>
+  <script src="assets/js/gifshot.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.2.0/dist/body-pix.min.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>

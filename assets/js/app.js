@@ -18,7 +18,11 @@ const state = {
   stripLayout: 'vertical', // 'vertical' or 'horizontal'
   inputMode: 'camera', // 'camera' or 'upload'
   printType: 'strip',   // 'strip' or 'polaroid'
-  currentFaceEffect: 'none' // 'none', 'box', 'birds', 'love', 'both'
+  currentFaceEffect: 'none', // 'none', 'box', 'birds', 'love', 'both'
+  gsBgType: 'color', // 'color' or 'image'
+  gsBgColor: '#a18cd1',
+  gsBgImage: null,
+  gsBgImageMode: 'cover' // 'cover', 'contain', 'stretch'
 };
 
 // ── DOM Refs ────────────────────────────────────────
@@ -46,6 +50,22 @@ const retakeBtn      = document.getElementById('retakeBtn');
 const downloadBtn    = document.getElementById('downloadBtn');
 const printBtn       = document.getElementById('printBtn');
 const openNewTabBtn  = document.getElementById('openNewTabBtn');
+const gifBtn         = document.getElementById('gifBtn');
+const greenScreenToggle = document.getElementById('greenScreenToggle');
+const gsSettings     = document.getElementById('gsSettings');
+const gsColorPicker  = document.getElementById('gsColorPicker');
+const gsUploadBtn    = document.getElementById('gsUploadBtn');
+const gsFileInput    = document.getElementById('gsFileInput');
+const gsFileName     = document.getElementById('gsFileName');
+const gsImageOptions = document.getElementById('gsImageOptions');
+const gsBgMode       = document.getElementById('gsBgMode');
+const editBtn        = document.getElementById('editBtn');
+const editToolbar    = document.getElementById('editToolbar');
+const brushColor     = document.getElementById('brushColor');
+const brushSize      = document.getElementById('brushSize');
+const brushBtn       = document.getElementById('brushBtn');
+const undoBtn        = document.getElementById('undoBtn');
+const saveEditBtn    = document.getElementById('saveEditBtn');
 const stripActions   = document.getElementById('stripActions');
 const emptyStrip     = document.getElementById('emptyStrip');
 const mirrorToggle   = document.getElementById('mirrorToggle');
@@ -329,6 +349,21 @@ function stopCamera() {
 // ── Events ──────────────────────────────────────────
 let faceDetectionInterval;
 
+// Doodle State
+let isEditingMode = false;
+let painting = false;
+let undoStack = [];
+let currentEmoji = null;
+
+// Green Screen State
+let netBodyPix = null;
+let lastSegmentationImageData = null;
+let isSegmenting = false;
+const gsTempCanvas = document.createElement('canvas');
+const gsTempCtx = gsTempCanvas.getContext('2d');
+const gsMaskCanvas = document.createElement('canvas');
+const gsMaskCtx = gsMaskCanvas.getContext('2d');
+
 function bindEvents() {
   // Mode Switcher
   modeCameraBtn.addEventListener('click', async () => {
@@ -423,10 +458,67 @@ function bindEvents() {
         }
 
         const ctx = faceOverlay.getContext('2d');
-        ctx.clearRect(0, 0, faceOverlay.width, faceOverlay.height);
-        const now = performance.now();
+          const w = faceOverlay.width;
+          const h = faceOverlay.height;
+          ctx.clearRect(0, 0, w, h);
+          const now = performance.now();
 
-        lastDetections.forEach(detection => {
+          // Green Screen Background & Compositing
+          if (greenScreenToggle.checked && lastSegmentationImageData) {
+            // Draw custom background
+            if (state.gsBgType === 'image' && state.gsBgImage) {
+               const imgRatio = state.gsBgImage.width / state.gsBgImage.height;
+               const canvasRatio = w / h;
+               let drawW, drawH, drawX, drawY;
+               
+               if (state.gsBgImageMode === 'stretch') {
+                 drawW = w; drawH = h; drawX = 0; drawY = 0;
+               } else if (state.gsBgImageMode === 'contain') {
+                 if (imgRatio > canvasRatio) {
+                   drawW = w; drawH = w / imgRatio; drawX = 0; drawY = (h - drawH) / 2;
+                 } else {
+                   drawH = h; drawW = h * imgRatio; drawX = (w - drawW) / 2; drawY = 0;
+                 }
+                 ctx.fillStyle = state.gsBgColor;
+                 ctx.fillRect(0, 0, w, h);
+               } else { // 'cover'
+                 if (imgRatio > canvasRatio) {
+                   drawH = h; drawW = h * imgRatio; drawX = (w - drawW) / 2; drawY = 0;
+                 } else {
+                   drawW = w; drawH = w / imgRatio; drawX = 0; drawY = (h - drawH) / 2;
+                 }
+               }
+               ctx.drawImage(state.gsBgImage, drawX, drawY, drawW, drawH);
+            } else {
+               ctx.fillStyle = state.gsBgColor;
+               ctx.fillRect(0, 0, w, h);
+            }
+
+
+            if (gsMaskCanvas.width !== video.videoWidth) {
+              gsMaskCanvas.width = video.videoWidth;
+              gsMaskCanvas.height = video.videoHeight;
+              gsTempCanvas.width = w;
+              gsTempCanvas.height = h;
+            }
+            gsMaskCtx.putImageData(lastSegmentationImageData, 0, 0);
+
+            gsTempCtx.clearRect(0, 0, w, h);
+            gsTempCtx.save();
+            if (state.mirror) {
+              gsTempCtx.translate(w, 0);
+              gsTempCtx.scale(-1, 1);
+            }
+            gsTempCtx.drawImage(gsMaskCanvas, 0, 0, w, h);
+            gsTempCtx.globalCompositeOperation = 'source-in';
+            gsTempCtx.drawImage(video, 0, 0, w, h);
+            gsTempCtx.restore();
+
+            ctx.drawImage(gsTempCanvas, 0, 0, w, h);
+          }
+
+          if (lastDetections && lastDetections.length > 0) {
+          lastDetections.forEach(detection => {
           const box = detection.box;
           let drawX = box.x;
           if (state.mirror) {
@@ -791,6 +883,7 @@ function bindEvents() {
             ctx.restore();
           }
         });
+        }
 
         requestAnimationFrame(drawLoop);
       }
@@ -809,6 +902,20 @@ function bindEvents() {
             // ignore errors
           }
           isDetecting = false;
+        }
+
+        if (greenScreenToggle.checked && netBodyPix && !isSegmenting) {
+          isSegmenting = true;
+          try {
+             const segmentation = await netBodyPix.segmentPerson(video, {
+               internalResolution: 'medium',
+               segmentationThreshold: 0.7
+             });
+             const foregroundColor = {r: 0, g: 0, b: 0, a: 255};
+             const backgroundColor = {r: 0, g: 0, b: 0, a: 0};
+             lastSegmentationImageData = bodyPix.toMask(segmentation, foregroundColor, backgroundColor);
+          } catch(err) {}
+          isSegmenting = false;
         }
 
         // Request next frame delay (approx 150ms to save battery and reduce lag)
@@ -861,6 +968,172 @@ function bindEvents() {
   // Print
   printBtn.addEventListener('click', printStrip);
 
+  // Buat GIF
+  gifBtn.addEventListener('click', () => {
+    if (state.photos.length === 0) {
+      showToast('⚠️ Belum ada foto untuk dibuat GIF!');
+      return;
+    }
+    
+    showLoading('Sedang membuat GIF... ⏳');
+    
+    // Resize photos to be more GIF-friendly if they are too large
+    // But gifshot handles image scaling nicely.
+    gifshot.createGIF({
+      images: state.photos,
+      interval: 0.5, // 0.5 seconds per frame
+      gifWidth: 640,
+      gifHeight: 360,
+      sampleInterval: 10,
+      numWorkers: 2
+    }, function(obj) {
+      hideLoading();
+      if (!obj.error) {
+        const image = obj.image;
+        
+        // Open preview
+        const newTab = window.open();
+        if (newTab) {
+          newTab.document.title = "CuteBooth GIF Preview";
+          newTab.document.body.style.margin = "0";
+          newTab.document.body.style.backgroundColor = "#222";
+          newTab.document.body.style.display = "flex";
+          newTab.document.body.style.justifyContent = "center";
+          newTab.document.body.style.alignItems = "center";
+          newTab.document.body.style.minHeight = "100vh";
+          newTab.document.body.innerHTML = `<img src="${image}" style="max-width: 90%; max-height: 95vh; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">`;
+        } else {
+          // If popup blocked, auto download
+          const link = document.createElement('a');
+          link.href = image;
+          link.download = `CuteBooth_GIF_${Date.now()}.gif`;
+          link.click();
+          showToast('✅ GIF berhasil didownload!');
+        }
+      } else {
+        showToast('⚠️ Gagal membuat GIF!');
+        console.error(obj.error);
+      }
+    });
+  });
+
+  // ── Doodle & Edit Logic ─────────────────────────────
+  function saveCanvasState() {
+    const ctx = stripCanvas.getContext('2d');
+    undoStack.push(ctx.getImageData(0, 0, stripCanvas.width, stripCanvas.height));
+    if (undoStack.length > 20) undoStack.shift(); 
+  }
+
+  editBtn.addEventListener('click', () => {
+    isEditingMode = true;
+    stripActions.style.display = 'none';
+    editToolbar.style.display = 'flex';
+    undoStack = [];
+    saveCanvasState();
+    currentEmoji = null;
+    document.querySelectorAll('.emoji-btn').forEach(b => {
+      b.style.filter = 'grayscale(100%)'; b.style.opacity = '0.5';
+    });
+    brushBtn.style.filter = 'none'; brushBtn.style.opacity = '1';
+    showToast('🖌️ Mode Coret-coret Aktif!');
+  });
+
+  saveEditBtn.addEventListener('click', () => {
+    isEditingMode = false;
+    editToolbar.style.display = 'none';
+    stripActions.style.display = 'flex';
+    
+    // Clear shadow state from context so it doesn't leak
+    const ctx = stripCanvas.getContext('2d');
+    ctx.shadowBlur = 0;
+    
+    showToast('✅ Editan Disimpan!');
+  });
+
+  undoBtn.addEventListener('click', () => {
+    if (undoStack.length > 1) {
+      undoStack.pop();
+      const previousState = undoStack[undoStack.length - 1];
+      const ctx = stripCanvas.getContext('2d');
+      ctx.putImageData(previousState, 0, 0);
+    } else {
+      showToast('Mentok cuy, gak bisa di-undo lagi!');
+    }
+  });
+
+  document.querySelectorAll('.emoji-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.emoji-btn').forEach(b => {
+        b.style.filter = 'grayscale(100%)'; b.style.opacity = '0.5';
+      });
+      btn.style.filter = 'none'; btn.style.opacity = '1';
+      if (btn.id === 'brushBtn') {
+        currentEmoji = null;
+      } else {
+        currentEmoji = btn.textContent.trim();
+      }
+    });
+  });
+
+  function getMousePos(e) {
+    const rect = stripCanvas.getBoundingClientRect();
+    const scaleX = stripCanvas.width / rect.width;
+    const scaleY = stripCanvas.height / rect.height;
+    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  }
+
+  function startDrawing(e) {
+    if (!isEditingMode) return;
+    saveCanvasState();
+    const pos = getMousePos(e);
+    const ctx = stripCanvas.getContext('2d');
+    if (currentEmoji) {
+      const size = brushSize.value * 6;
+      ctx.font = `${size}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowBlur = 0; // No glow for emojis
+      ctx.fillText(currentEmoji, pos.x, pos.y);
+    } else {
+      painting = true;
+      draw(e);
+    }
+  }
+
+  function stopDrawing() {
+    if (!isEditingMode || currentEmoji) return;
+    painting = false;
+    const ctx = stripCanvas.getContext('2d');
+    ctx.beginPath();
+  }
+
+  function draw(e) {
+    if (!painting || !isEditingMode || currentEmoji) return;
+    if(e.cancelable) e.preventDefault(); 
+    const pos = getMousePos(e);
+    const ctx = stripCanvas.getContext('2d');
+    ctx.lineWidth = brushSize.value;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = brushColor.value;
+    ctx.shadowBlur = parseInt(brushSize.value) * 0.8;
+    ctx.shadowColor = brushColor.value;
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+  }
+
+  stripCanvas.addEventListener('mousedown', startDrawing);
+  stripCanvas.addEventListener('mouseup', stopDrawing);
+  stripCanvas.addEventListener('mousemove', draw);
+  stripCanvas.addEventListener('mouseleave', stopDrawing);
+  stripCanvas.addEventListener('touchstart', startDrawing, {passive: false});
+  stripCanvas.addEventListener('touchend', stopDrawing);
+  stripCanvas.addEventListener('touchmove', draw, {passive: false});
+
   // Mirror toggle
   mirrorToggle.addEventListener('change', () => {
     state.mirror = mirrorToggle.checked;
@@ -895,6 +1168,65 @@ function bindEvents() {
     showLoading('Mencoba ulang kamera...');
     await startCamera();
     hideLoading();
+  });
+
+  // Green Screen Toggle
+  greenScreenToggle.addEventListener('change', async () => {
+    if (greenScreenToggle.checked) {
+      if (!netBodyPix) {
+        showLoading('Memuat AI Green Screen... ⏳');
+        try {
+          netBodyPix = await bodyPix.load({
+            architecture: 'MobileNetV1',
+            outputStride: 16,
+            multiplier: 0.50,
+            quantBytes: 2
+          });
+          hideLoading();
+          showToast('🟩 Green Screen Aktif!');
+        } catch(err) {
+          hideLoading();
+          showToast('⚠️ Gagal memuat AI Green Screen!');
+          greenScreenToggle.checked = false;
+          return;
+        }
+      }
+      video.style.opacity = '0';
+      gsSettings.style.display = 'block';
+    } else {
+      video.style.opacity = '1';
+      gsSettings.style.display = 'none';
+    }
+  });
+
+  // Green Screen Background Listeners
+  gsColorPicker.addEventListener('input', e => {
+    state.gsBgType = 'color';
+    state.gsBgColor = e.target.value;
+    gsImageOptions.style.display = 'none';
+  });
+
+  gsUploadBtn.addEventListener('click', () => {
+    gsFileInput.click();
+  });
+
+  gsFileInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        state.gsBgType = 'image';
+        state.gsBgImage = img;
+        gsFileName.textContent = '🖼️ ' + file.name;
+        gsImageOptions.style.display = 'flex';
+      };
+      img.src = url;
+    }
+  });
+
+  gsBgMode.addEventListener('change', e => {
+    state.gsBgImageMode = e.target.value;
   });
 
   // Filter pills
@@ -1129,8 +1461,8 @@ async function captureOnePhoto(index) {
     // Reset transform
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // Draw face effect overlay
-    if (state.currentFaceEffect !== 'none') {
+    // Draw face effect overlay OR green screen overlay
+    if (state.currentFaceEffect !== 'none' || greenScreenToggle.checked) {
       ctx.drawImage(faceOverlay, 0, 0, w, h);
     }
 

@@ -27,10 +27,14 @@ const video          = document.getElementById('videoFeed');
 // ── Face Effects Assets ─────────────────────────────
 const birdSVGString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><filter id="f" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000" flood-opacity="0.3"/></filter></defs><path fill="#4FC3F7" filter="url(#f)" d="M459.37 151.716c.325 4.548.325 9.097.325 13.645 0 138.72-105.583 298.558-298.558 298.558-59.452 0-114.68-17.219-161.137-47.106 8.447.974 16.568 1.299 25.34 1.299 49.055 0 94.213-16.568 130.274-44.832-46.132-.975-84.792-31.188-98.112-72.772 6.498.974 12.995 1.624 19.818 1.624 9.421 0 18.843-1.3 27.614-3.573-48.081-9.747-84.143-51.98-84.143-102.985v-1.299c13.969 7.797 30.214 12.67 47.431 13.319-28.264-18.843-46.781-51.005-46.781-87.391 0-19.492 5.197-37.36 14.294-52.954 51.655 63.675 129.3 105.258 216.365 109.807-1.624-7.797-2.599-15.918-2.599-24.04 0-57.828 46.782-104.934 104.934-104.934 30.213 0 57.502 12.67 76.67 33.137 23.715-4.548 46.456-13.32 66.599-25.34-7.798 24.366-24.366 44.833-46.132 57.827 21.117-2.273 41.584-8.122 60.426-16.243-14.292 20.791-32.161 39.308-52.628 54.253z"/></svg>`;
 const heartSVGString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#ff9a9e"/><stop offset="100%" stop-color="#fecfef"/></linearGradient><filter id="f" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#ff7eb3" flood-opacity="0.5"/></filter></defs><path fill="url(#g)" filter="url(#f)" d="M50,85 C50,85 15,55 15,30 C15,15 35,10 50,25 C65,10 85,15 85,30 C85,55 50,85 50,85 Z"/></svg>`;
+const flowerSVGString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><filter id="f" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.2"/></filter></defs><g filter="url(#f)"><circle cx="50" cy="25" r="18" fill="#fff"/><circle cx="25" cy="45" r="18" fill="#fff"/><circle cx="75" cy="45" r="18" fill="#fff"/><circle cx="35" cy="75" r="18" fill="#fff"/><circle cx="65" cy="75" r="18" fill="#fff"/><circle cx="50" cy="50" r="16" fill="#FFCA28"/></g></svg>`;
+
 const birdImg = new Image();
 birdImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(birdSVGString);
 const heartImg = new Image();
 heartImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(heartSVGString);
+const flowerImg = new Image();
+flowerImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(flowerSVGString);
 
 const hiddenCanvas   = document.getElementById('hiddenCanvas');
 const stripCanvas    = document.getElementById('stripCanvas');
@@ -102,35 +106,54 @@ function initDB() {
 
 function saveToGallery(dataURL) {
   if (!db) return;
-  const tx = db.transaction(STORE_NAME, 'readwrite');
-  const store = tx.objectStore(STORE_NAME);
-  store.add({ image: dataURL, timestamp: Date.now() });
+  try {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.add({ image: dataURL, timestamp: Date.now() });
+    req.onerror = (e) => console.error('Gagal menyimpan ke galeri', e);
+  } catch (e) {
+    console.error('Error saat menyimpan ke IndexedDB', e);
+  }
 }
 
 function loadGallery() {
   return new Promise((resolve) => {
     if (!db) return resolve([]);
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.getAll();
-    request.onsuccess = () => {
-      resolve(request.result.sort((a, b) => b.timestamp - a.timestamp));
-    };
+    try {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.getAll();
+      request.onsuccess = () => {
+        resolve(request.result.sort((a, b) => b.timestamp - a.timestamp));
+      };
+      request.onerror = () => resolve([]);
+    } catch (e) {
+      console.error('Error load gallery', e);
+      resolve([]);
+    }
   });
 }
 
 function deleteFromGallery(id) {
   if (!db) return;
-  const tx = db.transaction(STORE_NAME, 'readwrite');
-  const store = tx.objectStore(STORE_NAME);
-  store.delete(id);
+  try {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    store.delete(id);
+  } catch (e) {
+    console.error('Error delete dari gallery', e);
+  }
 }
 
 function clearGallery() {
   if (!db) return;
-  const tx = db.transaction(STORE_NAME, 'readwrite');
-  const store = tx.objectStore(STORE_NAME);
-  store.clear();
+  try {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    store.clear();
+  } catch (e) {
+    console.error('Error clear gallery', e);
+  }
 }
 
 // ── Init ────────────────────────────────────────────
@@ -399,6 +422,281 @@ function bindEvents() {
               ctx.restore();
             }
           }
+          if (state.currentFaceEffect === 'flower') {
+            // Flower Crown
+            const cx = drawX + box.width / 2;
+            const cy = box.y - box.height * 0.05; 
+            const radius = box.width * 0.55;
+            
+            const numFlowers = 6;
+            for (let i = 0; i < numFlowers; i++) {
+              const angle = -Math.PI * 0.85 + (i * (Math.PI * 0.7) / (numFlowers - 1));
+              const fx = cx + Math.cos(angle) * radius;
+              const bob = Math.sin(now * 0.002 + i) * 4;
+              const fy = cy + Math.sin(angle) * radius + bob;
+              
+              ctx.save();
+              ctx.translate(fx, fy);
+              ctx.rotate(now * 0.0005 + i); // slow spinning
+              
+              if (flowerImg.complete) {
+                const size = box.width * 0.25; 
+                ctx.drawImage(flowerImg, -size/2, -size/2, size, size);
+              }
+              ctx.restore();
+            }
+          }
+
+          if (state.currentFaceEffect === 'halo') {
+            // Angel Halo
+            const cx = drawX + box.width / 2;
+            const cy = box.y - box.height * 0.3; // High above the head
+            const radiusX = box.width * 0.45;
+            const radiusY = box.width * 0.12;
+            
+            ctx.save();
+            ctx.translate(cx, cy);
+            
+            // Hover animation
+            const hover = Math.sin(now * 0.003) * 10;
+            ctx.translate(0, hover);
+            
+            // Slight tilt
+            ctx.rotate(Math.sin(now * 0.001) * 0.05);
+            
+            // Outer glow
+            ctx.beginPath();
+            ctx.ellipse(0, 0, radiusX, radiusY, 0, 0, 2 * Math.PI);
+            ctx.lineWidth = box.width * 0.04;
+            ctx.strokeStyle = '#FFE082'; // Soft gold
+            ctx.shadowColor = '#FFF59D'; // Glow
+            ctx.shadowBlur = 15;
+            ctx.stroke();
+            
+            // Inner core
+            ctx.beginPath();
+            ctx.ellipse(0, 0, radiusX, radiusY, 0, 0, 2 * Math.PI);
+            ctx.lineWidth = box.width * 0.015;
+            ctx.strokeStyle = '#FFFFFF'; 
+            ctx.shadowBlur = 0;
+            ctx.stroke();
+            
+            ctx.restore();
+          }
+
+          if (state.currentFaceEffect === 'blush') {
+            // Kawaii Blush
+            const cheekRadius = box.width * 0.13; // Perfect cheek size
+            const leftCheekX = drawX + box.width * 0.25; // 25% from left
+            const rightCheekX = drawX + box.width * 0.75; // 25% from right
+            const cheekY = box.y + box.height * 0.55; // Right under the eyes/middle face
+            
+            ctx.save();
+            ctx.globalAlpha = 0.5;
+            ctx.fillStyle = '#ff4d6d';
+            ctx.shadowColor = '#ff4d6d';
+            ctx.shadowBlur = 15;
+            
+            // Left cheek
+            ctx.beginPath();
+            ctx.ellipse(leftCheekX, cheekY, cheekRadius, cheekRadius * 0.6, 0, 0, Math.PI*2);
+            ctx.fill();
+            
+            // Right cheek
+            ctx.beginPath();
+            ctx.ellipse(rightCheekX, cheekY, cheekRadius, cheekRadius * 0.6, 0, 0, Math.PI*2);
+            ctx.fill();
+            
+            // Anime lines
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.globalAlpha = 0.8;
+            
+            const drawLines = (cx, cy) => {
+              for(let i=0; i<3; i++) {
+                 ctx.beginPath();
+                 ctx.moveTo(cx - 10 + i*10, cy - 8);
+                 ctx.lineTo(cx - 15 + i*10, cy + 8);
+                 ctx.stroke();
+              }
+            };
+            drawLines(leftCheekX, cheekY);
+            drawLines(rightCheekX, cheekY);
+            
+            ctx.restore();
+          }
+
+          if (state.currentFaceEffect === 'cat') {
+            // Cute Cat Ears & Whiskers
+            const leftEarX = drawX + box.width * 0.25;
+            const rightEarX = drawX + box.width * 0.75;
+            const earYBase = box.y - box.height * 0.05; // Base on top of head
+            const earYTip = box.y - box.height * 0.25; // Pointing up
+            
+            ctx.save();
+            ctx.fillStyle = '#ffb6c1'; // pink inner
+            ctx.strokeStyle = '#fff'; // white furry outline
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = box.width * 0.015; // Thinner lines
+            
+            // Left Ear
+            ctx.beginPath();
+            ctx.moveTo(leftEarX - box.width * 0.08, earYBase);
+            ctx.lineTo(leftEarX, earYTip);
+            ctx.lineTo(leftEarX + box.width * 0.08, earYBase);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            // Right Ear
+            ctx.beginPath();
+            ctx.moveTo(rightEarX - box.width * 0.08, earYBase);
+            ctx.lineTo(rightEarX, earYTip);
+            ctx.lineTo(rightEarX + box.width * 0.08, earYBase);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            // Cat Nose
+            const noseX = drawX + box.width * 0.5;
+            const noseY = box.y + box.height * 0.45; // Moved slightly up to sit exactly on the nose
+            ctx.beginPath();
+            ctx.ellipse(noseX, noseY, box.width * 0.03, box.width * 0.02, 0, 0, Math.PI*2);
+            ctx.fillStyle = '#ff7eb3';
+            ctx.fill();
+            
+            // Whiskers
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            const whiskerStart = box.width * 0.06;
+            const whiskerEnd = box.width * 0.25;
+            // Left whiskers
+            ctx.beginPath(); ctx.moveTo(noseX - whiskerStart, noseY - 2); ctx.lineTo(noseX - whiskerEnd, noseY - 8); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(noseX - whiskerStart, noseY + 2); ctx.lineTo(noseX - whiskerEnd, noseY + 2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(noseX - whiskerStart, noseY + 6); ctx.lineTo(noseX - whiskerEnd, noseY + 12); ctx.stroke();
+            // Right whiskers
+            ctx.beginPath(); ctx.moveTo(noseX + whiskerStart, noseY - 2); ctx.lineTo(noseX + whiskerEnd, noseY - 8); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(noseX + whiskerStart, noseY + 2); ctx.lineTo(noseX + whiskerEnd, noseY + 2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(noseX + whiskerStart, noseY + 6); ctx.lineTo(noseX + whiskerEnd, noseY + 12); ctx.stroke();
+            
+            ctx.restore();
+          }
+
+          if (state.currentFaceEffect === 'glasses') {
+            // Cute Round Pink Glasses
+            const eyeY = box.y + box.height * 0.28; // Perfect eye level
+            const leftEyeX = drawX + box.width * 0.30; // Spread out to match pupil distance
+            const rightEyeX = drawX + box.width * 0.67; // Spread out to match pupil distance
+            const glassesRadius = box.width * 0.12; // Bigger lenses for the oversized kawaii look
+            
+            ctx.save();
+            ctx.strokeStyle = '#ffb6c1'; // Pink frames
+            ctx.lineWidth = box.width * 0.02; // Thinner frames
+            
+            // Left lens
+            ctx.beginPath();
+            ctx.arc(leftEyeX, eyeY, glassesRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; // Subtle glare
+            ctx.fill();
+            // Anime glare highlight
+            ctx.beginPath();
+            ctx.arc(leftEyeX - glassesRadius * 0.3, eyeY - glassesRadius * 0.3, glassesRadius * 0.25, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fill();
+            
+            // Right lens
+            ctx.beginPath();
+            ctx.arc(rightEyeX, eyeY, glassesRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.fill();
+            // Anime glare highlight
+            ctx.beginPath();
+            ctx.arc(rightEyeX - glassesRadius * 0.3, eyeY - glassesRadius * 0.3, glassesRadius * 0.25, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fill();
+            
+            // Bridge
+            ctx.beginPath();
+            ctx.moveTo(leftEyeX + glassesRadius, eyeY);
+            ctx.quadraticCurveTo(drawX + box.width * 0.5, eyeY - box.height * 0.03, rightEyeX - glassesRadius, eyeY);
+            ctx.stroke();
+            
+            ctx.restore();
+          }
+
+          if (state.currentFaceEffect === 'devil') {
+            // Cute Devil Horns
+            const leftHornX = drawX + box.width * 0.25;
+            const rightHornX = drawX + box.width * 0.75;
+            const hornBaseY = box.y - box.height * 0.05; // Moved up to hair line
+            const hornTipY = box.y - box.height * 0.25; // Much higher tips
+            
+            ctx.save();
+            ctx.fillStyle = '#ff1744'; // bright red
+            ctx.strokeStyle = '#fff'; // outline
+            ctx.lineWidth = box.width * 0.015; // Thinner outline
+            ctx.lineJoin = 'round';
+            
+            // Left Horn
+            ctx.beginPath();
+            ctx.moveTo(leftHornX - box.width * 0.05, hornBaseY); // Narrower base
+            ctx.quadraticCurveTo(leftHornX - box.width * 0.02, hornTipY, leftHornX + box.width * 0.02, hornTipY);
+            ctx.quadraticCurveTo(leftHornX, hornTipY + box.height * 0.1, leftHornX + box.width * 0.05, hornBaseY);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            
+            // Right Horn
+            ctx.beginPath();
+            ctx.moveTo(rightHornX + box.width * 0.05, hornBaseY);
+            ctx.quadraticCurveTo(rightHornX + box.width * 0.02, hornTipY, rightHornX - box.width * 0.02, hornTipY);
+            ctx.quadraticCurveTo(rightHornX, hornTipY + box.height * 0.1, rightHornX - box.width * 0.05, hornBaseY);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            
+            ctx.restore();
+          }
+
+          if (state.currentFaceEffect === 'sparkle') {
+            // Magical Sparkles floating around face
+            const cx = drawX + box.width / 2;
+            const cy = box.y + box.height / 2;
+            const radius = box.width * 0.55; // Closer to face
+            
+            ctx.save();
+            ctx.fillStyle = '#FFF59D'; // Soft yellow glow
+            ctx.shadowColor = '#FFF59D';
+            ctx.shadowBlur = 10;
+            
+            // Draw 15 floating stars for denser sparkles
+            for(let i=0; i<15; i++) {
+               const angle = (i * Math.PI * 2 / 15) + (now * 0.0005);
+               // offset some stars further out
+               const dist = radius * (0.8 + Math.sin(now * 0.002 + i) * 0.2); 
+               const sx = cx + Math.cos(angle) * dist;
+               const sy = cy + Math.sin(angle) * dist;
+               
+               // Star twinkle scale
+               const scale = 0.5 + Math.sin(now * 0.005 + i * 2) * 0.5; // 0 to 1
+               if(scale > 0.1) {
+                 const starSize = box.width * 0.04 * scale; // Smaller stars
+                 
+                 // Draw 4-pointed star
+                 ctx.beginPath();
+                 ctx.moveTo(sx, sy - starSize);
+                 ctx.quadraticCurveTo(sx, sy, sx + starSize, sy);
+                 ctx.quadraticCurveTo(sx, sy, sx, sy + starSize);
+                 ctx.quadraticCurveTo(sx, sy, sx - starSize, sy);
+                 ctx.quadraticCurveTo(sx, sy, sx, sy - starSize);
+                 ctx.fill();
+               }
+            }
+            ctx.restore();
+          }
         });
 
         requestAnimationFrame(drawLoop);
@@ -614,54 +912,61 @@ async function startCapture() {
   shutterBtn.disabled = true;
   state.photos = [];
 
-  if (state.inputMode === 'upload') {
-    if (uploadedPhotos.length === 0) {
-      showToast('⚠️ Pilih foto dulu!');
-      state.capturing = false;
-      shutterBtn.disabled = false;
-      return;
+  try {
+    if (state.inputMode === 'upload') {
+      if (uploadedPhotos.length === 0) {
+        showToast('⚠️ Pilih foto dulu!');
+        state.capturing = false;
+        shutterBtn.disabled = false;
+        return;
+      }
+      showToast('⚙️ Memproses foto...');
+      for (let i = 0; i < uploadedPhotos.length; i++) {
+        const img = new Image();
+        await new Promise((res, rej) => {
+          img.onload = res;
+          img.onerror = rej;
+          img.src = uploadedPhotos[i];
+        });
+        hiddenCanvas.width = 1280;
+        hiddenCanvas.height = 720;
+        const ctx = hiddenCanvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, 1280, 720);
+        applyCanvasFilter(ctx, 1280, 720, state.currentFilter);
+        state.photos.push(hiddenCanvas.toDataURL('image/png', 1.0));
+      }
+      // Pad with last photo if not enough
+      while (state.photos.length < state.photoCount) {
+        state.photos.push(state.photos[state.photos.length - 1]);
+      }
+      state.photos = state.photos.slice(0, state.photoCount);
+      await sleep(500); // UI feedback
+    } else {
+      showToast(`📸 Akan mengambil ${state.photoCount} foto!`);
+      for (let i = 0; i < state.photoCount; i++) {
+        if (state.timerDelay > 0) await countdown(state.timerDelay);
+        await captureOnePhoto(i + 1);
+        if (i < state.photoCount - 1) await sleep(600);
+      }
     }
-    showToast('⚙️ Memproses foto...');
-    for (let i = 0; i < uploadedPhotos.length; i++) {
-      const img = new Image();
-      await new Promise(res => {
-        img.onload = res;
-        img.src = uploadedPhotos[i];
-      });
-      hiddenCanvas.width = 1280;
-      hiddenCanvas.height = 720;
-      const ctx = hiddenCanvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, 1280, 720);
-      applyCanvasFilter(ctx, 1280, 720, state.currentFilter);
-      state.photos.push(hiddenCanvas.toDataURL('image/png', 1.0));
-    }
-    // Pad with last photo if not enough
-    while (state.photos.length < state.photoCount) {
-      state.photos.push(state.photos[state.photos.length - 1]);
-    }
-    state.photos = state.photos.slice(0, state.photoCount);
-    await sleep(500); // UI feedback
-  } else {
-    showToast(`📸 Akan mengambil ${state.photoCount} foto!`);
-    for (let i = 0; i < state.photoCount; i++) {
-      if (state.timerDelay > 0) await countdown(state.timerDelay);
-      await captureOnePhoto(i + 1);
-      if (i < state.photoCount - 1) await sleep(600);
-    }
-  }
 
-  await renderStrip();
-  state.capturing = false;
-  shutterBtn.disabled = false;
-  stripCanvas.style.display = 'block';
-  emptyStrip.style.display = 'none';
-  stripActions.style.display = 'flex';
-  
-  // Save to Gallery
-  const stripDataURL = stripCanvas.toDataURL('image/png', 1.0);
-  saveToGallery(stripDataURL);
-  
-  showToast('🎉 Strip foto siap & tersimpan di Galeri!');
+    await renderStrip();
+    stripCanvas.style.display = 'block';
+    emptyStrip.style.display = 'none';
+    stripActions.style.display = 'flex';
+    
+    // Save to Gallery
+    const stripDataURL = stripCanvas.toDataURL('image/png', 1.0);
+    saveToGallery(stripDataURL);
+    
+    showToast('🎉 Strip foto siap & tersimpan di Galeri!');
+  } catch (err) {
+    console.error('Error saat capture:', err);
+    showToast('⚠️ Terjadi kesalahan saat memproses foto!');
+  } finally {
+    state.capturing = false;
+    shutterBtn.disabled = false;
+  }
 }
 
 async function countdown(seconds) {
@@ -1650,3 +1955,22 @@ function printFromGallery(dataURL) {
   showToast('🖨️ Membuka dialog cetak...');
   setTimeout(() => { window.print(); }, 400);
 }
+
+// ── Hardware Button Listeners ──────────────────────────
+window.addEventListener('keydown', (e) => {
+  // Dengarkan tombol Volume Up / Volume Down di HP
+  if (e.key === 'VolumeUp' || e.key === 'VolumeDown' || 
+      e.key === 'AudioVolumeUp' || e.key === 'AudioVolumeDown') {
+    
+    // Mencegah volume HP berubah (jika didukung browser)
+    e.preventDefault();
+    
+    // Cegah foto beruntun jika tombol ditahan
+    if (e.repeat) return;
+    
+    // Pastikan tombol ambil foto sedang aktif (kamera mode nyala)
+    if (shutterBtn && !shutterBtn.disabled) {
+      shutterBtn.click();
+    }
+  }
+});

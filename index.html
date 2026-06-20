@@ -132,6 +132,19 @@
       <!-- Controls Panel -->
       <div class="controls-panel">
 
+        <!-- Shutter Button -->
+        <button class="shutter-btn" id="shutterBtn" aria-label="Ambil foto">
+          <span class="shutter-icon">📸</span>
+          <span class="shutter-text" id="shutterText">Ambil Foto!</span>
+        </button>
+
+        <!-- Camera Permission Warning -->
+        <div class="cam-warning" id="camWarning" role="alert" style="display:none;">
+          <span>⚠️</span>
+          <p>Kamera tidak dapat diakses. Pastikan kamu memberikan izin kamera!</p>
+          <button id="retryCamBtn" class="retry-btn">Coba Lagi</button>
+        </div>
+
         <!-- Filter Selector -->
         <div class="control-group" id="filterGroup">
           <div class="control-label" id="lbl-filter">🎨 Filter</div>
@@ -170,7 +183,13 @@
             <button class="pill" data-faceeffect="box" id="fe-box" role="option" aria-selected="false">Box 🔲</button>
             <button class="pill" data-faceeffect="birds" id="fe-birds" role="option" aria-selected="false">Birds 🐦</button>
             <button class="pill" data-faceeffect="love" id="fe-love" role="option" aria-selected="false">Love 💖</button>
-            <button class="pill" data-faceeffect="both" id="fe-both" role="option" aria-selected="false">Birds+Love 💞</button>
+            <button class="pill" data-faceeffect="flower" id="fe-flower" role="option" aria-selected="false">Flower 🌼</button>
+            <button class="pill" data-faceeffect="halo" id="fe-halo" role="option" aria-selected="false">Halo 👼</button>
+            <button class="pill" data-faceeffect="blush" id="fe-blush" role="option" aria-selected="false">Blush 😳</button>
+            <button class="pill" data-faceeffect="cat" id="fe-cat" role="option" aria-selected="false">Cat 🐱</button>
+            <button class="pill" data-faceeffect="glasses" id="fe-glasses" role="option" aria-selected="false">Glasses 👓</button>
+            <button class="pill" data-faceeffect="devil" id="fe-devil" role="option" aria-selected="false">Devil 😈</button>
+            <button class="pill" data-faceeffect="sparkle" id="fe-sparkle" role="option" aria-selected="false">Sparkles ✨</button>
           </div>
         </div>
 
@@ -241,19 +260,6 @@
           <span class="shutter-icon">🖼️</span>
           <span class="shutter-text">Galeri Saya</span>
         </button>
-
-        <!-- Shutter Button -->
-        <button class="shutter-btn" id="shutterBtn" aria-label="Ambil foto">
-          <span class="shutter-icon">📸</span>
-          <span class="shutter-text" id="shutterText">Ambil Foto!</span>
-        </button>
-
-        <!-- Camera Permission Warning -->
-        <div class="cam-warning" id="camWarning" role="alert" style="display:none;">
-          <span>⚠️</span>
-          <p>Kamera tidak dapat diakses. Pastikan kamu memberikan izin kamera!</p>
-          <button id="retryCamBtn" class="retry-btn">Coba Lagi</button>
-        </div>
 
       </div>
     </section>

@@ -17,11 +17,21 @@ const state = {
   facingMode: 'user', // 'user' for front, 'environment' for back
   stripLayout: 'vertical', // 'vertical' or 'horizontal'
   inputMode: 'camera', // 'camera' or 'upload'
-  printType: 'strip'   // 'strip' or 'polaroid'
+  printType: 'strip',   // 'strip' or 'polaroid'
+  currentFaceEffect: 'none' // 'none', 'box', 'birds', 'love', 'both'
 };
 
 // ── DOM Refs ────────────────────────────────────────
 const video          = document.getElementById('videoFeed');
+
+// ── Face Effects Assets ─────────────────────────────
+const birdSVGString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><filter id="f" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000" flood-opacity="0.3"/></filter></defs><path fill="#4FC3F7" filter="url(#f)" d="M459.37 151.716c.325 4.548.325 9.097.325 13.645 0 138.72-105.583 298.558-298.558 298.558-59.452 0-114.68-17.219-161.137-47.106 8.447.974 16.568 1.299 25.34 1.299 49.055 0 94.213-16.568 130.274-44.832-46.132-.975-84.792-31.188-98.112-72.772 6.498.974 12.995 1.624 19.818 1.624 9.421 0 18.843-1.3 27.614-3.573-48.081-9.747-84.143-51.98-84.143-102.985v-1.299c13.969 7.797 30.214 12.67 47.431 13.319-28.264-18.843-46.781-51.005-46.781-87.391 0-19.492 5.197-37.36 14.294-52.954 51.655 63.675 129.3 105.258 216.365 109.807-1.624-7.797-2.599-15.918-2.599-24.04 0-57.828 46.782-104.934 104.934-104.934 30.213 0 57.502 12.67 76.67 33.137 23.715-4.548 46.456-13.32 66.599-25.34-7.798 24.366-24.366 44.833-46.132 57.827 21.117-2.273 41.584-8.122 60.426-16.243-14.292 20.791-32.161 39.308-52.628 54.253z"/></svg>`;
+const heartSVGString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#ff9a9e"/><stop offset="100%" stop-color="#fecfef"/></linearGradient><filter id="f" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#ff7eb3" flood-opacity="0.5"/></filter></defs><path fill="url(#g)" filter="url(#f)" d="M50,85 C50,85 15,55 15,30 C15,15 35,10 50,25 C65,10 85,15 85,30 C85,55 50,85 50,85 Z"/></svg>`;
+const birdImg = new Image();
+birdImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(birdSVGString);
+const heartImg = new Image();
+heartImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(heartSVGString);
+
 const hiddenCanvas   = document.getElementById('hiddenCanvas');
 const stripCanvas    = document.getElementById('stripCanvas');
 const countdownOverlay = document.getElementById('countdownOverlay');
@@ -287,6 +297,112 @@ function bindEvents() {
       faceapi.matchDimensions(faceOverlay, displaySize);
 
       let isDetecting = false;
+      let lastDetections = [];
+      let isDrawing = false;
+
+      function drawLoop() {
+        if (video.paused || video.ended) {
+          isDrawing = false;
+          return;
+        }
+
+        const ctx = faceOverlay.getContext('2d');
+        ctx.clearRect(0, 0, faceOverlay.width, faceOverlay.height);
+        const now = performance.now();
+
+        lastDetections.forEach(detection => {
+          const box = detection.box;
+          let drawX = box.x;
+          if (state.mirror) {
+            drawX = faceOverlay.width - box.x - box.width;
+          }
+
+          if (state.currentFaceEffect === 'box') {
+            ctx.strokeStyle = '#ff6eb4';
+            ctx.lineWidth = 4;
+            ctx.setLineDash([8, 6]);
+            ctx.strokeRect(drawX, box.y, box.width, box.height);
+            ctx.setLineDash([]);
+            
+            ctx.fillStyle = '#ff6eb4';
+            ctx.font = 'bold 18px Nunito';
+            ctx.fillText('✨ Cute Face ✨', drawX, box.y - 10);
+          }
+          
+          if (state.currentFaceEffect === 'birds' || state.currentFaceEffect === 'both') {
+            // Dizzy birds (Image) rotating above head
+            const cx = drawX + box.width / 2;
+            const cy = box.y - box.height * 0.25; // Moved much higher above the face
+            const radiusX = box.width * 0.6;
+            const radiusY = box.width * 0.12; // Flatter ellipse
+            
+            const speed = 0.0025;
+            const numBirds = 5;
+            
+            for (let i = 0; i < numBirds; i++) {
+              const angle = now * speed + (i * Math.PI * 2 / numBirds);
+              const bx = cx + Math.cos(angle) * radiusX;
+              const by = cy + Math.sin(angle) * radiusY;
+              
+              ctx.save();
+              ctx.translate(bx, by);
+              
+              // Scale based on Y position to simulate 3D depth
+              const z = Math.sin(angle); // -1 to 1
+              const scale = 0.8 + (z * 0.25);
+              
+              // Flip bird based on moving direction
+              const isMovingLeft = Math.cos(angle) < 0;
+              ctx.scale(isMovingLeft ? -scale : scale, scale);
+              
+              // Gentle bobbing for the bird itself
+              const bob = Math.sin(now * 0.005 + i) * 5;
+              
+              if (birdImg.complete) {
+                const size = box.width * 0.18; // Much smaller size
+                ctx.drawImage(birdImg, -size/2, -size/2 + bob, size, size);
+              }
+              ctx.restore();
+            }
+          }
+
+          if (state.currentFaceEffect === 'love' || state.currentFaceEffect === 'both') {
+            // Love Crown (Hearts forming an arc over the head)
+            const cx = drawX + box.width / 2;
+            const cy = box.y - box.height * 0.05; // Moved higher to sit properly on head
+            const radius = box.width * 0.55;
+            
+            const numHearts = 5;
+            for (let i = 0; i < numHearts; i++) {
+              // Create an arc from left to right over the head
+              const angle = -Math.PI * 0.8 + (i * (Math.PI * 0.6) / (numHearts - 1));
+              const hx = cx + Math.cos(angle) * radius;
+              
+              // Subtle bobbing motion
+              const bob = Math.sin(now * 0.003 + i * 1.5) * 6;
+              const hy = cy + Math.sin(angle) * radius + bob;
+              
+              ctx.save();
+              ctx.translate(hx, hy);
+              
+              // Rotate heart slightly to follow the arc, but keep it mostly upright
+              ctx.rotate((angle + Math.PI/2) * 0.5); 
+              
+              // Soft pulsing scale
+              const pulse = 1 + Math.sin(now * 0.004 + i) * 0.06;
+              ctx.scale(pulse, pulse);
+              
+              if (heartImg.complete) {
+                const size = box.width * 0.18; // Smaller, elegant size
+                ctx.drawImage(heartImg, -size/2, -size/2, size, size);
+              }
+              ctx.restore();
+            }
+          }
+        });
+
+        requestAnimationFrame(drawLoop);
+      }
       
       async function detectLoop() {
         if (video.paused || video.ended) return;
@@ -297,28 +413,7 @@ function bindEvents() {
             // Lower inputSize for significantly better performance on mobile (default is 416)
             const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
             const detections = await faceapi.detectAllFaces(video, options);
-            const resizedDetections = faceapi.resizeResults(detections, displaySize);
-
-            const ctx = faceOverlay.getContext('2d');
-            ctx.clearRect(0, 0, faceOverlay.width, faceOverlay.height);
-
-            resizedDetections.forEach(detection => {
-              const box = detection.box;
-              let drawX = box.x;
-              if (state.mirror) {
-                drawX = faceOverlay.width - box.x - box.width;
-              }
-
-              ctx.strokeStyle = '#ff6eb4';
-              ctx.lineWidth = 4;
-              ctx.setLineDash([8, 6]);
-              ctx.strokeRect(drawX, box.y, box.width, box.height);
-              ctx.setLineDash([]);
-              
-              ctx.fillStyle = '#ff6eb4';
-              ctx.font = 'bold 18px Nunito';
-              ctx.fillText('✨ Cute Face ✨', drawX, box.y - 10);
-            });
+            lastDetections = faceapi.resizeResults(detections, displaySize);
           } catch (err) {
             // ignore errors
           }
@@ -330,6 +425,10 @@ function bindEvents() {
       }
 
       // Start loop
+      if (!isDrawing) {
+        isDrawing = true;
+        drawLoop();
+      }
       detectLoop();
     }
   });
@@ -400,6 +499,20 @@ function bindEvents() {
     });
     applyVideoFilter(state.currentFilter);
   });
+
+  // Face effect pills
+  const faceEffectPills = document.getElementById('faceEffectPills');
+  if (faceEffectPills) {
+    faceEffectPills.addEventListener('click', e => {
+      const btn = e.target.closest('.pill');
+      if (!btn || btn.tagName !== 'BUTTON') return;
+      state.currentFaceEffect = btn.dataset.faceeffect;
+      document.querySelectorAll('#faceEffectPills .pill').forEach(p => {
+        p.classList.toggle('active', p === btn);
+        if (p.tagName === 'BUTTON') p.setAttribute('aria-selected', p === btn ? 'true' : 'false');
+      });
+    });
+  }
 
   // Photo count pills
   document.getElementById('countPills').addEventListener('click', e => {

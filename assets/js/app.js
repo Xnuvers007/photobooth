@@ -45,6 +45,7 @@ const shutterBtn     = document.getElementById('shutterBtn');
 const retakeBtn      = document.getElementById('retakeBtn');
 const downloadBtn    = document.getElementById('downloadBtn');
 const printBtn       = document.getElementById('printBtn');
+const openNewTabBtn  = document.getElementById('openNewTabBtn');
 const stripActions   = document.getElementById('stripActions');
 const emptyStrip     = document.getElementById('emptyStrip');
 const mirrorToggle   = document.getElementById('mirrorToggle');
@@ -80,6 +81,98 @@ const galleryGrid    = document.getElementById('galleryGrid');
 const emptyGallery   = document.getElementById('emptyGallery');
 const clearGalleryBtn= document.getElementById('clearGalleryBtn');
 const shutterText    = document.getElementById('shutterText');
+
+// Phase 1: Custom Text & Audio
+const customTitleInput = document.getElementById('customTitleInput');
+const customSubInput   = document.getElementById('customSubInput');
+const sfxToggle        = document.getElementById('sfxToggle');
+const bgmToggle        = document.getElementById('bgmToggle');
+
+// ── Web Audio API (SFX & BGM) ────────────────────────
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+let bgmOscillator = null;
+let bgmInterval = null;
+
+function initAudio() {
+  if (!audioCtx) audioCtx = new AudioContext();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playBeep() {
+  if (!sfxToggle.checked) return;
+  initAudio();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch Beep
+  gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+}
+
+function playShutterSound() {
+  if (!sfxToggle.checked) return;
+  initAudio();
+  // Noise burst for shutter
+  const bufferSize = audioCtx.sampleRate * 0.1;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  const gain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'highpass'; filter.frequency.value = 1000;
+  gain.gain.setValueAtTime(1, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+  noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+  noise.start();
+}
+
+function playNote(freq, type = 'triangle', duration = 0.2, vol = 0.05) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type; osc.frequency.value = freq;
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + duration);
+}
+
+function toggleBGM() {
+  initAudio();
+  if (bgmToggle.checked) {
+    if (bgmInterval) return; // already playing
+    // Cute Arpeggiator progression
+    const notes = [
+      [261.63, 329.63, 392.00], // C
+      [349.23, 440.00, 523.25], // F
+      [392.00, 493.88, 587.33], // G
+      [329.63, 415.30, 493.88]  // E
+    ];
+    let chordIdx = 0; let arpIdx = 0;
+    bgmInterval = setInterval(() => {
+        if (!bgmToggle.checked) {
+          clearInterval(bgmInterval);
+          bgmInterval = null;
+          return;
+        }
+        playNote(notes[chordIdx][arpIdx], 'square', 0.15, 0.02);
+        arpIdx++;
+        if(arpIdx >= 3) {
+            arpIdx = 0;
+            chordIdx = (chordIdx + 1) % notes.length;
+            playNote(notes[chordIdx][0] / 2, 'triangle', 0.4, 0.04); // bass
+        }
+    }, 200);
+  } else {
+    clearInterval(bgmInterval);
+    bgmInterval = null;
+  }
+}
 
 // ── IndexedDB (Gallery) ──────────────────────────────
 const DB_NAME = 'CuteBoothDB';
@@ -705,7 +798,7 @@ function bindEvents() {
       async function detectLoop() {
         if (video.paused || video.ended) return;
         
-        if (!state.capturing && !isDetecting) {
+        if (!isDetecting) {
           isDetecting = true;
           try {
             // Lower inputSize for significantly better performance on mobile (default is 416)
@@ -746,6 +839,24 @@ function bindEvents() {
 
   // Download
   downloadBtn.addEventListener('click', downloadStrip);
+
+  // Open in New Tab (Preview)
+  openNewTabBtn.addEventListener('click', () => {
+    const dataURL = stripCanvas.toDataURL('image/png', 1.0);
+    const newTab = window.open();
+    if (newTab) {
+      newTab.document.title = "CuteBooth Preview";
+      newTab.document.body.style.margin = "0";
+      newTab.document.body.style.backgroundColor = "#222";
+      newTab.document.body.style.display = "flex";
+      newTab.document.body.style.justifyContent = "center";
+      newTab.document.body.style.alignItems = "center";
+      newTab.document.body.style.minHeight = "100vh";
+      newTab.document.body.innerHTML = `<img src="${dataURL}" style="max-width: 90%; max-height: 95vh; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">`;
+    } else {
+      showToast('⚠️ Pop-up diblokir oleh browser!');
+    }
+  });
 
   // Print
   printBtn.addEventListener('click', printStrip);
@@ -885,6 +996,9 @@ function bindEvents() {
       }
   });
 
+  // BGM Toggle Listener
+  bgmToggle.addEventListener('change', toggleBGM);
+
   // Frame grid
   document.getElementById('frameGrid').addEventListener('click', e => {
     const btn = e.target.closest('.frame-option');
@@ -982,6 +1096,8 @@ async function countdown(seconds) {
         return;
       }
       countdownNumber.textContent = remaining === 1 ? '😄' : remaining;
+      playBeep(); // Trigger Beep sound!
+      
       // Re-trigger animation
       countdownNumber.style.animation = 'none';
       void countdownNumber.offsetWidth;
@@ -1013,11 +1129,18 @@ async function captureOnePhoto(index) {
     // Reset transform
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
+    // Draw face effect overlay
+    if (state.currentFaceEffect !== 'none') {
+      ctx.drawImage(faceOverlay, 0, 0, w, h);
+    }
+
     // Apply canvas filter
     applyCanvasFilter(ctx, w, h, state.currentFilter);
 
     const dataURL = hiddenCanvas.toDataURL('image/png', 1.0);
     state.photos.push(dataURL);
+
+    playShutterSound(); // Trigger Shutter sound!
 
     // Flash!
     flashEffect.classList.add('flashing');
@@ -1257,13 +1380,16 @@ async function renderStrip() {
       ctx.restore();
       const img = await loadImg(state.photos[i]);
       ctx.drawImage(img, px + PAD_SIDE, py + PAD_TOP, PHOTO_W, PHOTO_H);
+      const titleText = customTitleInput && customTitleInput.value.trim() !== '' ? customTitleInput.value.trim() : 'CuteBooth ✨';
+      const subText = customSubInput && customSubInput.value.trim() !== '' ? customSubInput.value.trim() : new Date().toLocaleDateString('id-ID');
+
       ctx.fillStyle = '#555';
       ctx.font = 'bold 28px Pacifico, cursive';
       ctx.textAlign = 'center';
-      ctx.fillText('CuteBooth ✨', px + POL_W / 2, py + POL_H - 38);
+      ctx.fillText(titleText, px + POL_W / 2, py + POL_H - 38);
       ctx.font = '16px Nunito, sans-serif';
       ctx.fillStyle = '#aaa';
-      ctx.fillText(new Date().toLocaleDateString('id-ID'), px + POL_W / 2, py + POL_H - 16);
+      ctx.fillText(subText, px + POL_W / 2, py + POL_H - 16);
     }
   }
 
@@ -1319,10 +1445,11 @@ async function renderStrip() {
       ctx.fillText(`${String(i + 1).padStart(2, '0')}A`, px + 5, py + PHOTO_H - 6);
     }
     // Logo
+    const titleText = customTitleInput && customTitleInput.value.trim() !== '' ? customTitleInput.value.trim() : 'CUTEBOOTH';
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 18px Nunito, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('CUTEBOOTH', STRIP_W / 2, STRIP_H - 6);
+    ctx.fillText(titleText, STRIP_W / 2, STRIP_H - 6);
   }
 
   // ──────────────────────────────────────────────────────────
@@ -1397,10 +1524,11 @@ async function renderStrip() {
       ctx.beginPath(); ctx.moveTo(x, HEADER); ctx.lineTo(x, TH - FOOTER); ctx.stroke();
     }
     // Header
+    const titleText = customTitleInput && customTitleInput.value.trim() !== '' ? customTitleInput.value.trim() : '✨ CuteBooth – Contact Sheet ✨';
     ctx.fillStyle = '#222';
     ctx.font = 'bold 26px Nunito, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('✨ CuteBooth – Contact Sheet ✨', TW / 2, 48);
+    ctx.fillText(titleText, TW / 2, 48);
     // Thumbnails
     for (let i = 0; i < count; i++) {
       const col = i % COLS;
@@ -1451,13 +1579,15 @@ async function renderStrip() {
     ctx.strokeStyle = '#c8a060'; ctx.lineWidth = 2;
     ctx.strokeRect(20, 20, TW - 40, TH - 40);
     // Header
+    const titleText = customTitleInput && customTitleInput.value.trim() !== '' ? customTitleInput.value.trim() : '∴ CuteBooth ∴';
+    const subText = customSubInput && customSubInput.value.trim() !== '' ? customSubInput.value.trim() : '~ Kenangan Manis ~';
     ctx.fillStyle = '#6b4c16';
     ctx.font = 'bold 36px Pacifico, cursive';
     ctx.textAlign = 'center';
-    ctx.fillText('∴ CuteBooth ∴', TW / 2, 56);
+    ctx.fillText(titleText, TW / 2, 56);
     ctx.font = 'italic 16px Georgia, serif';
     ctx.fillStyle = '#9b7030';
-    ctx.fillText('~ Kenangan Manis ~', TW / 2, 80);
+    ctx.fillText(subText, TW / 2, 80);
     // Photos with sepia tint
     for (let i = 0; i < count; i++) {
       const px = horizontal ? PAD + i * (PHOTO_W + PAD) : PAD;
@@ -1597,14 +1727,17 @@ function drawHeader(ctx, w, headerH, frame) {
   };
   const col = colors[frame] || colors.kawaii;
 
+  const titleText = customTitleInput && customTitleInput.value.trim() !== '' ? customTitleInput.value.trim() : '✿ CuteBooth ✿';
+  const subText = customSubInput && customSubInput.value.trim() !== '' ? customSubInput.value.trim() : '📸 Kenangan Manis ✨';
+
   ctx.save();
   ctx.textAlign = 'center';
   ctx.font = 'bold 32px Pacifico, cursive';
   ctx.fillStyle = col.title;
-  ctx.fillText('✿ CuteBooth ✿', w / 2, 46);
+  ctx.fillText(titleText, w / 2, 46);
   ctx.font = 'bold 13px Nunito, sans-serif';
   ctx.fillStyle = col.sub;
-  ctx.fillText('📸 Kenangan Manis ✨', w / 2, 68);
+  ctx.fillText(subText, w / 2, 68);
   ctx.restore();
 }
 

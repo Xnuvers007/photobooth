@@ -248,11 +248,36 @@
             <button class="pill active" data-printtype="strip"     id="ptype-strip"     role="option" aria-selected="true">📋 Standard</button>
             <button class="pill"        data-printtype="polaroid"  id="ptype-polaroid"  role="option" aria-selected="false">🎞️ Polaroid</button>
             <button class="pill"        data-printtype="filmstrip" id="ptype-filmstrip" role="option" aria-selected="false">🎬 Film Strip</button>
-            <button class="pill"        data-printtype="compact"   id="ptype-compact"   role="option" aria-selected="false">📦 Compact 2×2</button>
-            <button class="pill"        data-printtype="panel4"    id="ptype-panel4"    role="option" aria-selected="false">🔲 4 Panel</button>
-            <button class="pill"        data-printtype="contact"   id="ptype-contact"   role="option" aria-selected="false">🗃️ Contact Sheet</button>
+            <button class="pill"        data-printtype="compact"   id="ptype-compact"   role="option" aria-selected="false">🔳 Compact</button>
+            <button class="pill"        data-printtype="panel4"    id="ptype-panel4"    role="option" aria-selected="false">🎛️ 4 Panel</button>
+            <button class="pill"        data-printtype="contact"   id="ptype-contact"   role="option" aria-selected="false">📄 Contact</button>
             <button class="pill"        data-printtype="vintage"   id="ptype-vintage"   role="option" aria-selected="false">📜 Vintage</button>
           </div>
+        </div>
+
+        <!-- Custom Text -->
+        <div class="control-group">
+          <div class="control-label" id="lbl-customtext">✍️ Kustom Teks</div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <input type="text" id="customTitleInput" class="custom-input pill" placeholder="Judul (misal: CUTEBOOTH)" style="width: 100%; text-align: left; padding-left: 12px;">
+            <input type="text" id="customSubInput" class="custom-input pill" placeholder="Sub-teks (misal: Kenangan Manis)" style="width: 100%; text-align: left; padding-left: 12px;">
+          </div>
+        </div>
+
+        <!-- Audio Toggles -->
+        <div class="control-group toggle-group">
+          <label class="control-label" for="sfxToggle">🔊 Efek Suara (SFX)</label>
+          <label class="toggle-switch" for="sfxToggle">
+            <input type="checkbox" id="sfxToggle" checked />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          </label>
+        </div>
+        <div class="control-group toggle-group">
+          <label class="control-label" for="bgmToggle">🎵 Musik (BGM)</label>
+          <label class="toggle-switch" for="bgmToggle">
+            <input type="checkbox" id="bgmToggle" />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          </label>
         </div>
 
         <!-- Gallery Button -->
@@ -375,15 +400,10 @@
 
         <!-- Strip Actions -->
         <div class="strip-actions" id="stripActions" style="display:none;">
-          <button class="action-btn download-btn" id="downloadBtn" aria-label="Download foto">
-            💾 Download
-          </button>
-          <button class="action-btn print-btn" id="printBtn" aria-label="Cetak foto">
-            🖨️ Cetak
-          </button>
-          <button class="action-btn retake-btn" id="retakeBtn" aria-label="Ambil foto ulang">
-            🔄 Ulang
-          </button>
+          <button class="action-btn" id="downloadBtn" style="background:#20bf55;">⬇️ Download</button>
+          <button class="action-btn" id="printBtn" style="background:#ff3366;">🖨️ Cetak</button>
+          <button class="action-btn" id="openNewTabBtn" style="background:#3498db;">👁️ Lihat</button>
+          <button class="action-btn" id="retakeBtn" style="background:#f39c12;">🔄 Ulang</button>
         </div>
       </div>
 
